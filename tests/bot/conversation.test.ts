@@ -1,0 +1,74 @@
+import { describe, it, expect } from "vitest";
+import { ConversationManager } from "../../src/bot/conversation";
+import { ParsedRequest } from "../../src/bot/request-parser";
+import { BrandRecord, AssetRecord } from "../../src/catalog/catalog-repo";
+
+const manager = new ConversationManager();
+
+const twoBrands: BrandRecord[] = [
+  { id: "the-news-lens", display_name: "The News Lens 關鍵評論網", aliases: ["TNL"], brand_group: "TNL Mediagene", importance: "primary", drive_folder_id: null, status: "active" },
+  { id: "tnl-mediagene", display_name: "TNL Mediagene", aliases: ["TNL"], brand_group: null, importance: "primary", drive_folder_id: null, status: "active" },
+];
+
+const sampleAssets: AssetRecord[] = [
+  { id: "a1", brand_id: "the-news-lens", asset_type: "logo", variant: "logo", language: null, format: "svg", color: "blue", background: "transparent", layout: "horizontal", usage: ["general"], source_drive_file_id: "f1", source_path: "p1", intrinsic_width: 300, intrinsic_height: 100, can_resize: true, status: "active", confidence: 0.9, inferred_from: [], review_status: "accepted", review_reason: null, scanner_run_id: null },
+  { id: "a2", brand_id: "the-news-lens", asset_type: "logo", variant: "logo", language: null, format: "svg", color: "white", background: "transparent", layout: "horizontal", usage: ["general"], source_drive_file_id: "f2", source_path: "p2", intrinsic_width: 300, intrinsic_height: 100, can_resize: true, status: "active", confidence: 0.9, inferred_from: [], review_status: "accepted", review_reason: null, scanner_run_id: null },
+  { id: "a3", brand_id: "the-news-lens", asset_type: "logo", variant: "logo", language: null, format: "png", color: "blue", background: "transparent", layout: "horizontal", usage: ["general"], source_drive_file_id: "f3", source_path: "p3", intrinsic_width: 500, intrinsic_height: 167, can_resize: false, status: "active", confidence: 0.9, inferred_from: [], review_status: "accepted", review_reason: null, scanner_run_id: null },
+];
+
+describe("ConversationManager", () => {
+  it("asks for brand disambiguation when multiple brands match", () => {
+    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: null, language: null, asset_type: null, width: null, height: null, raw_text: "我要 TNL logo" };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    const question = manager.getNextQuestion(state, twoBrands, sampleAssets);
+    expect(question?.field).toBe("brand_id");
+    expect(question?.options).toHaveLength(2);
+    expect(question?.text).toContain("多個");
+  });
+
+  it("auto-resolves single brand match without asking", () => {
+    const parsed: ParsedRequest = { brand: "關鍵評論網", format: "svg", color: null, language: null, asset_type: null, width: null, height: null, raw_text: "我要關鍵評論網 SVG" };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    const question = manager.getNextQuestion(state, [twoBrands[0]], sampleAssets);
+    // Brand auto-resolved, next question is color
+    expect(question?.field).toBe("color");
+  });
+
+  it("asks for color when multiple colors available", () => {
+    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: null, language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    state.resolvedBrandId = "the-news-lens";
+    const question = manager.getNextQuestion(state, [twoBrands[0]], sampleAssets);
+    expect(question?.field).toBe("color");
+    expect(question?.options?.length).toBeGreaterThan(1);
+  });
+
+  it("skips format question when already specified", () => {
+    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    state.resolvedBrandId = "the-news-lens";
+    const question = manager.getNextQuestion(state, [twoBrands[0]], sampleAssets);
+    // Format and color are set, asks about size
+    expect(question?.field).toBe("size");
+  });
+
+  it("applyAnswer updates state correctly", () => {
+    const parsed: ParsedRequest = { brand: "TNL", format: null, color: null, language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    const updated = manager.applyAnswer(state, "brand_id", "the-news-lens");
+    expect(updated.resolvedBrandId).toBe("the-news-lens");
+  });
+
+  it("isComplete when brand and format are resolved", () => {
+    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    state.resolvedBrandId = "the-news-lens";
+    expect(manager.isComplete(state)).toBe(true);
+  });
+
+  it("not complete without brand resolution", () => {
+    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    expect(manager.isComplete(state)).toBe(false);
+  });
+});
