@@ -1,0 +1,55 @@
+{
+  "root": {
+    "id": "root-folder-id",
+    "name": "Logos原始檔",
+    "children": [
+      {
+        "id": "folder-tnl",
+        "name": "The News Lens 關鍵評論網",
+        "mimeType": "application/vnd.google-apps.folder",
+        "children": [
+          {
+            "id": "folder-tnl-svg",
+            "name": "SVG",
+            "mimeType": "application/vnd.google-apps.folder",
+            "children": [
+              { "id": "file-1", "name": "logo-blue.svg", "mimeType": "image/svg+xml", "size": 4200, "modifiedTime": "2025-03-15T08:00:00Z" },
+              { "id": "file-2", "name": "logo-en-blue.svg", "mimeType": "image/svg+xml", "size": 3800, "modifiedTime": "2025-03-15T08:00:00Z" },
+              { "id": "file-3", "name": "logo-en-white.svg", "mimeType": "image/svg+xml", "size": 3600, "modifiedTime": "2025-03-15T08:00:00Z" },
+              { "id": "file-4", "name": "mark-blk.svg", "mimeType": "image/svg+xml", "size": 2100, "modifiedTime": "2025-03-15T08:00:00Z" },
+              { "id": "file-5", "name": "mark-white.svg", "mimeType": "image/svg+xml", "size": 2100, "modifiedTime": "2025-03-15T08:00:00Z" }
+            ]
+          },
+          {
+            "id": "folder-tnl-png",
+            "name": "PNG",
+            "mimeType": "application/vnd.google-apps.folder",
+            "children": [
+              { "id": "file-6", "name": "tnl-primary.png", "mimeType": "image/png", "size": 52000, "modifiedTime": "2025-03-15T08:00:00Z" },
+              { "id": "file-7", "name": "tnl-primary-b.png", "mimeType": "image/png", "size": 48000, "modifiedTime": "2025-03-15T08:00:00Z" },
+              { "id": "file-8", "name": "tnl-en-primary.png", "mimeType": "image/png", "size": 55000, "modifiedTime": "2025-03-15T08:00:00Z" },
+              { "id": "file-9", "name": "tnl-mark-w.png", "mimeType": "image/png", "size": 12000, "modifiedTime": "2025-03-15T08:00:00Z" },
+              { "id": "file-10", "name": "tnl-plus.png", "mimeType": "image/png", "size": 35000, "modifiedTime": "2025-03-15T08:00:00Z" }
+            ]
+          },
+          {
+            "id": "folder-tnl-archive",
+            "name": "封存",
+            "mimeType": "application/vnd.google-apps.folder",
+            "children": [
+              { "id": "file-11", "name": "old-logo.svg", "mimeType": "image/svg+xml", "size": 5000, "modifiedTime": "2020-01-01T00:00:00Z" }
+            ]
+          },
+          {
+            "id": "folder-tnl-campaign",
+            "name": "十週年CI",
+            "mimeType": "application/vnd.google-apps.folder",
+            "children": [
+              { "id": "file-12", "name": "anniversary-logo.svg", "mimeType": "image/svg+xml", "size": 8000, "modifiedTime": "2024-06-01T00:00:00Z" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
