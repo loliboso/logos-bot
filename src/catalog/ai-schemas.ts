@@ -6,7 +6,7 @@ export const BRAND_INFERENCE_SCHEMA = {
     aliases: { type: "array" as const, items: { type: "string" as const }, description: "Alternative names users might use to find this brand" },
     brand_group: { type: ["string", "null"] as const, description: "Parent group if applicable" },
   },
-  required: ["brand_id", "display_name", "aliases"] as const,
+  required: ["brand_id", "display_name", "aliases"],
 };
 
 export const ASSET_INFERENCE_SCHEMA = {
@@ -24,5 +24,5 @@ export const ASSET_INFERENCE_SCHEMA = {
     review_status: { type: "string" as const, enum: ["accepted", "needs_review", "ignored"] },
     review_reason: { type: ["string", "null"] as const, description: "Taiwan Mandarin reason if needs_review" },
   },
-  required: ["asset_type", "variant", "language", "color", "background", "layout", "usage", "confidence", "inferred_from", "review_status", "review_reason"] as const,
+  required: ["asset_type", "variant", "language", "color", "background", "layout", "usage", "confidence", "inferred_from", "review_status", "review_reason"],
 };

@@ -9,5 +9,5 @@ export const REQUEST_PARSE_SCHEMA = {
     width: { type: ["integer", "null"] as const, description: "Requested width in pixels" },
     height: { type: ["integer", "null"] as const, description: "Requested height in pixels" },
   },
-  required: ["brand", "format", "color", "language", "asset_type", "width", "height"] as const,
+  required: ["brand", "format", "color", "language", "asset_type", "width", "height"],
 };
