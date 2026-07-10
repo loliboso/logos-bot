@@ -39,6 +39,10 @@ export class DriveClient {
         fields: "nextPageToken, files(id, name, mimeType, parents, modifiedTime, size)",
         pageSize: 1000,
         pageToken,
+        // Required for folders that live in a Shared Drive — without these the
+        // API silently returns zero results for shared-drive content.
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       });
 
       for (const f of res.data.files || []) {
@@ -61,7 +65,7 @@ export class DriveClient {
   /** Download a file's raw bytes by id (used to extract dimensions / render). */
   async downloadFile(fileId: string): Promise<Buffer> {
     const res = await this.drive.files.get(
-      { fileId, alt: "media" },
+      { fileId, alt: "media", supportsAllDrives: true },
       { responseType: "arraybuffer" }
     );
     return Buffer.from(res.data as ArrayBuffer);
@@ -69,7 +73,7 @@ export class DriveClient {
 
   /** Public webViewLink for a file, so users can open the original in Drive. */
   async getWebViewLink(fileId: string): Promise<string | null> {
-    const res = await this.drive.files.get({ fileId, fields: "webViewLink" });
+    const res = await this.drive.files.get({ fileId, fields: "webViewLink", supportsAllDrives: true });
     return res.data.webViewLink || null;
   }
 
