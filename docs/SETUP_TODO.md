@@ -77,7 +77,7 @@
 - Node.js 20+ 的執行主機（bot 需長時間運行，Socket Mode 為長連線）
 - 資料庫為本機 SQLite 檔（`DATABASE_PATH`，預設 `./data/catalog.db`），需可持久化存放
 
-> **要問 IT 的問題：** 這個 bot 要跑在哪裡（同事的機器 / 內部伺服器 / 雲端）？是否有現成的部署方式？
+> **部署地點與金鑰放法見下方「部署與金鑰管理」章節**——那裡有給 IT 討論用的完整對照。
 
 ### `.env` 範例
 
@@ -98,6 +98,43 @@ GEMINI_API_KEY=...
 DATABASE_PATH=./data/catalog.db
 MAX_OUTPUT_SIZE=4000
 ```
+
+---
+
+## 部署與金鑰管理（上線前跟 IT 討論）
+
+### 先破除一個常見誤解：同事「不會」碰到金鑰
+
+這是「一個」長期運行的伺服器程式（Socket Mode 長連線），跑在**某一台機器/服務上**。同事是透過 **Slack 這個介面**去用它——打 `/logo`、收檔案，全程在 Slack 裡。
+
+```
+同事 A ─┐
+同事 B ─┼──→ Slack ──→ 【一台機器上跑的 bot 程式】──→ Google Drive / Gemini
+同事 C ─┘                    ↑
+                    金鑰只存在這裡，就這一份
+```
+
+- 同事的電腦**什麼都不用裝，也不會拿到任何金鑰**。
+- 金鑰只需存在 bot 跑的那**一台**機器/服務上，**份數永遠是一份**——上線只是把這一份從你的筆電換個地方放，不是「發給每個人」。
+
+### 金鑰怎麼放，取決於 bot 部署在哪
+
+程式的 config 已寫成分層解析（`src/config.ts`）：**優先讀 `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` 檔案路徑，沒有才退回讀 `GOOGLE_SERVICE_ACCOUNT_KEY` 整包內容**。因此下列前兩種情境「程式完全不用改」：
+
+| 部署情境 | 金鑰怎麼進來 | 程式要改嗎 |
+|---|---|---|
+| **① 內部伺服器 / 同事機器**（最單純） | 金鑰檔放該機器某路徑（如 `/etc/logos-bot/service-account.json`），`.env` 的 `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` 指過去，設好檔案權限（只有跑 bot 的系統帳號讀得到） | 否 |
+| **② 容器 / 雲端**（Docker、Cloud Run…） | 容器是無狀態的，不適合放檔案。用 **Google Secret Manager** 存金鑰，部署時注入成環境變數 `GOOGLE_SERVICE_ACCOUNT_KEY`（整包） | 否 |
+| **③ GCP 原生（最乾淨，無金鑰）** | bot 跑在 Cloud Run / GCE / GKE 時，用 **Workload Identity / 附掛 Service Account** 把身分綁到運算資源，SDK 自動取得權限，**完全沒有金鑰檔要保管**（沒有金鑰＝沒有外洩風險，Google 最推薦） | 需小改一個檔（拿掉 `DriveClient` 傳入的 credentials，讓 Google SDK 自動偵測），幾行而已 |
+
+**同一套金鑰管理邏輯也適用 Gemini / Anthropic 金鑰**——差別只在 Gemini/Anthropic 是純字串，直接放環境變數或 Secret Manager 即可，沒有「檔案 vs 內容」的分層問題。
+
+### 要問 IT 的問題
+
+> **這個 bot 要部署到哪裡？**（同事的機器 / 內部伺服器 / GCP Cloud Run / 其他）
+> — 這個答案直接決定用上面①②③哪一種：內部伺服器 → 檔案路徑就好；GCP 容器 → Secret Manager 或 Workload Identity。
+>
+> 其他：公司對 service account 金鑰保管有無規範（是否要求放進 Secret Manager）？SQLite 資料檔（`DATABASE_PATH`）要放在哪個可持久化的位置？
 
 ---
 
