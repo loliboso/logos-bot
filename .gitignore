@@ -4,3 +4,7 @@ data/
 *.log
 .env
 .DS_Store
+# Google service account 金鑰（勿進版控）
+slack-drive-integration-*.json
+*-service-account*.json
+*.serviceaccount.json
