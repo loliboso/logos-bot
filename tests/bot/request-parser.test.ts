@@ -1,14 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { RequestParser } from "../../src/bot/request-parser";
+import { AiProvider } from "../../src/ai/provider";
 
 function createMockParser(mockInput: any): RequestParser {
-  const parser = new RequestParser("fake-key");
-  vi.spyOn((parser as any).client.messages, "create").mockResolvedValue({
-    content: [
-      { type: "tool_use", id: "call-1", name: "parse_logo_request", input: mockInput },
-    ],
-  });
-  return parser;
+  const provider: AiProvider = {
+    generateStructured: async () => mockInput,
+  };
+  return new RequestParser(provider);
 }
 
 describe("RequestParser", () => {

@@ -1,19 +1,22 @@
 import { App } from "@slack/bolt";
 import { RequestParser } from "./request-parser";
-import { ConversationManager, ConversationState } from "./conversation";
+import { ConversationManager } from "./conversation";
+import { ConversationStore } from "./conversation-store";
 import { AssetResolver } from "./asset-resolver";
 import { CatalogRepo, BrandRecord } from "../catalog/catalog-repo";
 import { buildQuestionMessage, buildErrorMessage } from "./response-builder";
-import { handleResolvedAsset } from "./dm-handler";
-
-const conversations = new Map<string, ConversationState>();
+import { DriveClient } from "../scanner/drive-client";
+import { config } from "../config";
+import { createDeliveryPorts, handleResolvedAsset } from "./delivery";
 
 export function registerCommands(
   app: App,
   parser: RequestParser,
   conversationManager: ConversationManager,
   resolver: AssetResolver,
-  repo: CatalogRepo
+  repo: CatalogRepo,
+  conversations: ConversationStore,
+  driveClient: DriveClient
 ): void {
   app.command("/logo", async ({ command, ack, respond }) => {
     await ack();
@@ -35,7 +38,15 @@ export function registerCommands(
     if (!question && conversationManager.isComplete(state)) {
       const result = resolver.resolve(state);
       if (result) {
-        await handleResolvedAsset(result, respond);
+        // Slash-command responses are ephemeral and can't upload files; a
+        // custom-size request here is told to use DM instead (handled by the
+        // default uploadPng fallback in createDeliveryPorts).
+        const ports = createDeliveryPorts({
+          driveClient,
+          respond,
+          maxOutputSize: config.MAX_OUTPUT_SIZE,
+        });
+        await handleResolvedAsset(result, ports);
       } else {
         await respond(buildErrorMessage("找不到符合條件的 Logo，請嘗試其他描述。"));
       }
@@ -51,7 +62,7 @@ export function registerCommands(
   });
 
   // Button action handler
-  app.action(/^select_(.+)_(.+)$/, async ({ action, ack, respond, body }) => {
+  app.action(/^select_(.+)_(.+)$/, async ({ action, ack, respond, body, client }) => {
     await ack();
     const userId = body.user.id;
     const state = conversations.get(userId);
@@ -76,7 +87,18 @@ export function registerCommands(
       conversations.delete(userId);
       const result = resolver.resolve(updated);
       if (result) {
-        await handleResolvedAsset(result, respond);
+        const channelId = (body as any).channel?.id as string | undefined;
+        const ports = createDeliveryPorts({
+          driveClient,
+          respond,
+          maxOutputSize: config.MAX_OUTPUT_SIZE,
+          uploadPng: channelId
+            ? async (buffer, filename, title) => {
+                await client.files.uploadV2({ channel_id: channelId, file: buffer, filename, title });
+              }
+            : undefined,
+        });
+        await handleResolvedAsset(result, ports);
       } else {
         await respond(buildErrorMessage("找不到符合條件的 Logo。"));
       }

@@ -5,10 +5,12 @@ import { registerCommands } from "./bot/commands";
 import { registerDmHandler } from "./bot/dm-handler";
 import { RequestParser } from "./bot/request-parser";
 import { ConversationManager } from "./bot/conversation";
+import { ConversationStore } from "./bot/conversation-store";
 import { AssetResolver } from "./bot/asset-resolver";
 import { CatalogRepo } from "./catalog/catalog-repo";
 import { OutputCache } from "./renderer/cache";
 import { DriveClient } from "./scanner/drive-client";
+import { createAiProvider } from "./ai/factory";
 import { mkdirSync } from "fs";
 import { dirname } from "path";
 
@@ -19,15 +21,17 @@ async function main(): Promise<void> {
 
   const repo = new CatalogRepo(db);
   const cache = new OutputCache(db);
-  const parser = new RequestParser(config.ANTHROPIC_API_KEY);
+  const aiProvider = createAiProvider();
+  const parser = new RequestParser(aiProvider);
   const conversationManager = new ConversationManager();
+  const conversations = new ConversationStore();
   const resolver = new AssetResolver(repo);
   const driveClient = new DriveClient(config.GOOGLE_SERVICE_ACCOUNT_KEY);
 
   const app = createApp();
 
-  registerCommands(app, parser, conversationManager, resolver, repo);
-  registerDmHandler(app, parser, conversationManager, resolver, repo, cache, driveClient);
+  registerCommands(app, parser, conversationManager, resolver, repo, conversations, driveClient);
+  registerDmHandler(app, parser, conversationManager, resolver, repo, cache, driveClient, conversations);
 
   await app.start();
   console.log("⚡ Logo Bot is running");

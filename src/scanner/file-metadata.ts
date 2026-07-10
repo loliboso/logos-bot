@@ -33,6 +33,29 @@ export function extractSvgDimensions(svgContent: string): SvgDimensions | null {
   };
 }
 
+/**
+ * Normalize a downloaded file's content into intrinsic pixel dimensions,
+ * dispatching on MIME type. Returns null for unsupported formats (e.g. AI/EPS)
+ * or when dimensions can't be determined.
+ */
+export function extractIntrinsicDimensions(
+  buffer: Buffer,
+  mimeType: string
+): PngDimensions | null {
+  if (mimeType === "image/svg+xml") {
+    const svg = extractSvgDimensions(buffer.toString("utf-8"));
+    if (!svg) return null;
+    // Prefer explicit width/height; fall back to the viewBox extents.
+    const width = svg.width ?? svg.viewBoxWidth;
+    const height = svg.height ?? svg.viewBoxHeight;
+    return { width: Math.round(width), height: Math.round(height) };
+  }
+  if (mimeType === "image/png") {
+    return extractPngDimensions(buffer);
+  }
+  return null;
+}
+
 export function extractPngDimensions(buffer: Buffer): PngDimensions | null {
   // PNG header: 8 bytes signature, then IHDR chunk
   // IHDR starts at byte 8: 4 bytes length, 4 bytes "IHDR", 4 bytes width, 4 bytes height

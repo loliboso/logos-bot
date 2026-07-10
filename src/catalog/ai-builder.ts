@@ -1,7 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { ScannedFile } from "../scanner/scanner";
 import { SvgDimensions, PngDimensions } from "../scanner/file-metadata";
 import { ASSET_INFERENCE_SCHEMA } from "./ai-schemas";
+import { AiProvider } from "../ai/provider";
 
 export interface AiInferredMetadata {
   brand_id: string;
@@ -20,9 +20,6 @@ export interface AiInferredMetadata {
   review_reason: string | null;
 }
 
-// Current, valid Claude model id (the source plan referenced a stale id).
-const AI_MODEL = "claude-sonnet-5";
-
 const NAMING_RULES = `
 Naming inference rules for logo files:
 - "logo": full logo with wordmark or text
@@ -40,11 +37,7 @@ When review_reason is needed, write it in Taiwan Mandarin (繁體中文).
 `;
 
 export class AiBuilder {
-  private client: Anthropic;
-
-  constructor(apiKey: string) {
-    this.client = new Anthropic({ apiKey });
-  }
+  constructor(private provider: AiProvider) {}
 
   async buildAssetMetadata(
     file: ScannedFile,
@@ -72,33 +65,24 @@ Return structured metadata for this asset. Confidence should reflect how certain
 If confidence < 0.7, set review_status to "needs_review" and provide review_reason in Taiwan Mandarin.
 If confidence >= 0.7, set review_status to "accepted".`;
 
-    const response = await this.client.messages.create({
-      model: AI_MODEL,
-      max_tokens: 1024,
-      messages: [{ role: "user", content: prompt }],
-      tools: [
-        {
-          name: "record_asset_metadata",
-          description: "Record inferred metadata for a logo asset",
-          input_schema: ASSET_INFERENCE_SCHEMA,
-        },
-      ],
-      tool_choice: { type: "tool", name: "record_asset_metadata" },
+    const inferred = await this.provider.generateStructured({
+      prompt,
+      toolName: "record_asset_metadata",
+      toolDescription: "Record inferred metadata for a logo asset",
+      schema: ASSET_INFERENCE_SCHEMA,
+      maxTokens: 1024,
     });
 
-    const toolBlock = response.content.find((b) => b.type === "tool_use");
-    if (!toolBlock || toolBlock.type !== "tool_use") {
+    if (!inferred) {
       throw new Error("AI did not return structured metadata");
     }
-
-    const inferred = toolBlock.input as any;
 
     return {
       brand_id: brandInfo.brand_id,
       display_name: brandInfo.display_name,
       aliases: brandInfo.aliases,
-      ...inferred,
-    };
+      ...(inferred as Record<string, any>),
+    } as AiInferredMetadata;
   }
 
   inferBrandFromPath(parentPath: string): { brand_id: string; display_name: string; aliases: string[] } {

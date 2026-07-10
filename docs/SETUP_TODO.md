@@ -1,7 +1,7 @@
 # Logo Bot 上線待辦清單
 
 > 本文件列出讓 Logo Bot 能實際運作所需的**外部服務設定**（需要 IT／管理員權限）與**尚未完成的程式功能**。
-> 現況：15 項任務的程式骨架已完成、65 個測試通過、TypeScript strict 編譯乾淨；但部分執行期功能仍是骨架（見 Part B）。
+> 現況（2026-07-10 更新）：**Part B 的四個阻斷性缺口（B1–B4）已全部補完**，另把 AI 呼叫抽成供應商介面（可換 Gemini）。端到端邏輯已就緒，86 個測試通過、TypeScript strict 編譯乾淨。剩下的是 Part A 的外部金鑰設定與實機測試。
 
 ---
 
@@ -36,34 +36,41 @@
 
 到 Google Cloud Console：
 
-1. 建立或選定一個 GCP 專案
-2. 啟用 **Google Drive API**
-3. 建立 **Service Account**，並下載 JSON 金鑰
-4. 把 Logo 原始檔所在的 **Drive 資料夾分享給該 service account 的 email**（唯讀 Viewer 即可）
-5. 取得該資料夾的 **Folder ID**（網址列 `folders/` 後面那串）
+1. [x] 建立或選定一個 GCP 專案
+2. [x] 啟用 **Google Drive API**
+3. [x] 建立 **Service Account**，並下載 JSON 金鑰
+4. [x] 把 Logo 原始檔所在的 **Drive 資料夾分享給該 service account 的 email**（唯讀 Viewer 即可）
+5. [x] 取得該資料夾的 **Folder ID**（網址列 `folders/` 後面那串）`1Y6avk_W5jRsl5Ab-PWiBvOo_AFGoFEv2`
 
 | 取得的東西 | 對應 .env 變數 |
 |-----------|---------------|
-| Service Account JSON 金鑰（整包貼上） | `GOOGLE_SERVICE_ACCOUNT_KEY` |
+| Service Account JSON 金鑰的**檔案路徑**（推薦） | `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` |
+| 或：Service Account JSON 金鑰（整包貼上，備用） | `GOOGLE_SERVICE_ACCOUNT_KEY` |
 | Drive 根資料夾 ID | `DRIVE_ROOT_FOLDER_ID` |
+
+> **金鑰放法（推薦）**：把 IT 給的 `.json` 放在專案**外**的路徑（例如 `~/logos-bot-secrets/service-account.json`，勿放進 repo），然後在 `.env` 設 `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` 指向它。程式會優先讀檔案路徑，沒有時才退回讀整包 `GOOGLE_SERVICE_ACCOUNT_KEY`。
 
 > **要問 IT 的問題：** Logo 原始檔目前放在哪個 Drive／共用雲端硬碟？是否能分享給 service account？公司對 service account 金鑰的保管有無規範（如需放進 secret manager）？
 
-### 3. Anthropic API Key（Claude）
+### 3. AI 供應商金鑰（自然語言理解）
 
-取得 Claude API 金鑰（sk-ant-...）→ 填入 `ANTHROPIC_API_KEY`。
+這個 bot 有兩處用 AI 做自然語言理解，是目前設計的核心：
 
-**為什麼需要？** 這個 bot 有兩處用 Claude 做自然語言理解，是目前設計的核心：
+1. **解析使用者的話**（`src/bot/request-parser.ts`）：使用者在 Slack 打「我要 TNL 藍色的 logo，要 SVG」這種自由文字，程式呼叫 AI 拆成結構化欄位（品牌 / 顏色 / 格式 / 尺寸）。這是 bot「聽得懂人話」的關鍵。
+2. **建立目錄時推斷檔案含意**（`src/catalog/ai-builder.ts`）：掃描 Drive 時，AI 依檔名與資料夾路徑推斷每個檔案是什麼（例如 `logo-en-white.svg` → 英文版 / 白色 / logo），並給信心分數。
 
-1. **解析使用者的話**（`src/bot/request-parser.ts`）：使用者在 Slack 打「我要 TNL 藍色的 logo，要 SVG」這種自由文字，程式呼叫 Claude 拆成結構化欄位（品牌 / 顏色 / 格式 / 尺寸）。這是 bot「聽得懂人話」的關鍵。
-2. **建立目錄時推斷檔案含意**（`src/catalog/ai-builder.ts`）：掃描 Drive 時，Claude 依檔名與資料夾路徑推斷每個檔案是什麼（例如 `logo-en-white.svg` → 英文版 / 白色 / logo），並給信心分數。
+**供應商可自由切換（已抽成介面）。** AI 呼叫已抽成 `src/ai/provider.ts` 的 `AiProvider` 介面，切換只是改 `.env`，不動程式：
 
-**能不能不用 AI？** 可以，但要取捨：
-- 替代方案是**關鍵字比對／規則式解析**（硬寫規則，例如看到「SVG」就設 format=svg）。對固定、規律的檔名與簡單指令堪用；但使用者講得口語、或檔名不規則時容易失準。
-- 好處：省 API 成本、不需外部服務、無資料外送疑慮。
-- **這是一個尚待你決定的方向**。若選規則版，本項（Anthropic 金鑰）可省略，但需要額外開發規則解析器（會改動下方 B 區的範圍）。
+| 供應商 | 設定 | 狀態 |
+|--------|------|------|
+| **Gemini**（目前選定） | `AI_PROVIDER=gemini` + `GEMINI_API_KEY`（選填 `GEMINI_MODEL`，預設 `gemini-2.5-flash`） | ✅ 已實作（`src/ai/gemini-provider.ts`，用 REST 免裝套件） |
+| Anthropic Claude | `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`（sk-ant-...） | ✅ 已實作 |
 
-> **要問 IT 的問題：** 公司是否已有 Anthropic 帳號／計費？還是要新申請？用量成本由誰負擔？公司對「將檔名／使用者訊息傳給外部 AI 服務」有無資安或隱私規範？
+> **決策脈絡：** 公司是 Google Workspace + GCP，選 Gemini 讓計費與整合統一。（另有一條路：啟動 Claude Code 的環境本身跑在 AWS Bedrock 上，理論上公司 AWS 帳號已有 Claude 存取；但此專案 npm 依賴樹壞掉裝不了 bedrock-sdk，故先走 Gemini。三條路的程式都已備妥，日後可改 `.env` 切換。）
+
+**申請 Gemini 金鑰：** 到 Google AI Studio（https://aistudio.google.com/apikey）建立 API key → 填入 `GEMINI_API_KEY`。
+
+> **要問 IT 的問題：** 用哪個 GCP 專案／計費帳戶開 Gemini？用量成本由誰負擔？公司對「將檔名／使用者訊息傳給 Gemini」有無資安或隱私規範（注意：Google AI Studio 免費層可能會用資料訓練，正式使用建議走付費層或 Vertex AI）？
 
 ### 4. 執行環境
 
@@ -78,59 +85,63 @@
 SLACK_BOT_TOKEN=xoxb-...
 SLACK_SIGNING_SECRET=...
 SLACK_APP_TOKEN=xapp-...
-GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}
-DRIVE_ROOT_FOLDER_ID=...
-ANTHROPIC_API_KEY=sk-ant-...
+# Google 金鑰：擇一。推薦用檔案路徑（金鑰檔放 repo 外）。
+GOOGLE_SERVICE_ACCOUNT_KEY_PATH=/Users/you/logos-bot-secrets/service-account.json
+# GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}   # 備用：整包貼上
+DRIVE_ROOT_FOLDER_ID=1Y6avk_W5jRsl5Ab-PWiBvOo_AFGoFEv2
+# AI 供應商：目前選 Gemini。改 anthropic 只需換這兩行。
+AI_PROVIDER=gemini
+GEMINI_API_KEY=...
+# GEMINI_MODEL=gemini-2.5-flash   # 選填
+# AI_PROVIDER=anthropic
+# ANTHROPIC_API_KEY=sk-ant-...
 DATABASE_PATH=./data/catalog.db
 MAX_OUTPUT_SIZE=4000
 ```
 
 ---
 
-## Part B — 尚未完成的程式功能（開發端待補）
+## Part B — 程式功能（已完成 ✅）
 
-以下是目前程式的骨架缺口。**即使 Part A 全部設定完成，在補完這些之前 bot 仍無法回傳實際檔案。** 這些不需要外部金鑰即可開發與測試。
+原本的四個阻斷性缺口已全部補完（2026-07-10）。
 
-### B1. 缺少掃描進入點（阻斷性）
-- `src/index.ts` 只啟動 bot，從未呼叫 `runFullScan`。
-- 結果：catalog（品牌／asset 目錄）永遠是空的，bot 查不到任何 logo。
-- 待補：加一個 `scan` CLI 指令（例如 `pnpm scan`）來執行 `runFullScan`。
+### B1. 掃描進入點 ✅
+- 新增 `npm run scan`（`src/scan.ts`）執行 `runFullScan`，填充 catalog 並輸出審查報告到 `data/reports/`。
+- config 改成惰性驗證：scan 只需 Google + AI 供應商金鑰，缺 Slack token 也能跑。
 
-### B2. 掃描不會下載檔案內容
-- `src/scanner/run-scan.ts` 中 `dimensions` 永遠是 `null`，也沒有從 Drive 抓 SVG／PNG 的 bytes。
-- 結果：asset 的尺寸為空、自訂尺寸算圖時沒有來源內容可用。
-- 待補：在掃描流程中呼叫 Drive 下載，並用 `extractSvgDimensions` / `extractPngDimensions` 填入尺寸。
+### B2. 掃描下載內容並填尺寸 ✅
+- `DriveClient.downloadFile()` 下載 SVG/PNG bytes；新增 `extractIntrinsicDimensions()` 正規化尺寸。
+- `run-scan.ts` 掃描時下載並填入 `intrinsic_width/height`；下載失敗安全降級為 null。
 
-### B3. 回覆訊息不含實際檔案（阻斷性）
-- `buildDeliveryMessage`（`src/bot/response-builder.ts`）只組出一段文字（檔名）。
-- 缺少：Drive 原始檔連結、以及把算好的 PNG 上傳到 Slack。
-- 自訂尺寸流程（`handleResolvedAsset` in `src/bot/dm-handler.ts`）只驗證數字，**沒有真的呼叫 `renderCustomSize`**。
-- 待補：直接下載回傳 Drive 連結；自訂尺寸則下載來源→`renderCustomSize`→用 `files:write` 上傳 PNG。
+### B3. 回傳實際檔案（Drive 連結 + PNG 上傳）✅
+- 邏輯抽到 `src/bot/delivery.ts`，用注入的 ports 介面（可完整單元測試）。
+- 直接下載 → 回 Drive `webViewLink`；自訂尺寸 → 下載來源 → `renderCustomSize` → `files.uploadV2` 上傳 PNG。
+- 注意：slash 指令的回覆是 ephemeral 無法上傳檔案，自訂尺寸會提示改用 DM；DM 與按鈕互動可正常上傳。
 
-### B4. 對話狀態分裂
-- `src/bot/commands.ts` 和 `src/bot/dm-handler.ts` 各自持有一份 `conversations` Map。
-- 結果：DM 提問時狀態存在 A，使用者點按鈕時到 B 找 → 找不到，多輪對話會中斷。
-- 待補：抽出共用的 conversation store（單一 Map 或存 DB），兩個 handler 共用。
+### B4. 共用對話狀態 ✅
+- 新增 `src/bot/conversation-store.ts`（`ConversationStore`），`index.ts` 建立單一實例注入兩個 handler。多輪對話不再中斷。
 
-### （選用）B5. 若決定改用規則式解析（取代 Anthropic）
-- 僅在 Part A 第 3 項選擇「不用 AI」時才需要。
-- 待補：改寫 `request-parser.ts` 與 `ai-builder.ts`，用關鍵字表／正則規則取代 Claude 呼叫。
-- 影響：可移除 `ANTHROPIC_API_KEY` 需求；但自然語言彈性會下降。
+### AI 供應商介面 ✅（可切換 Gemini / Anthropic）
+- 新增 `src/ai/provider.ts`（`AiProvider` 介面）、`src/ai/anthropic-provider.ts`、`src/ai/gemini-provider.ts`、`src/ai/factory.ts`。
+- `RequestParser` 與 `AiBuilder` 依賴 `AiProvider`；`index.ts` / `scan.ts` 改用 `createAiProvider()`，依 `.env` 自動選供應商。
+- **Gemini provider 用 REST + Node 內建 fetch，不裝任何套件**（避開此專案壞掉的 npm 依賴樹），用 function calling 強制模式 ANY 取得結構化輸出。
+- **切換供應商 = 改 `.env`**：`AI_PROVIDER=gemini`（+`GEMINI_API_KEY`）或 `AI_PROVIDER=anthropic`（+`ANTHROPIC_API_KEY`）。程式與測試都不用動。
 
-### 建議實作順序
-1. B4（共用對話狀態）— 純程式重構，最單純
-2. B1（scan CLI）— 讓 catalog 能被填
-3. B2（掃描下載內容）— 讓尺寸與來源正確
-4. B3（真正回傳檔案 / 上傳 PNG）— 完成端到端體驗
+---
 
-完成 B1–B4 後，配合 Part A 的金鑰即可做完整的端到端測試。
+## 尚待決定 / 下一步
+
+1. **申請 Gemini 金鑰**：Google AI Studio 建 API key → 填 `GEMINI_API_KEY`。（待你/IT 處理；見 Part A 第 3 項。）
+2. **實機端到端測試**：填好 `.env`（Slack tokens + `GEMINI_API_KEY`）後，先 `npm run scan` 建目錄，再 `npm run dev` 啟動 bot，於 Slack 實測 `/logo` 與 DM。Gemini provider 已寫好並通過單元測試，但因需金鑰尚未做過真實 API 呼叫——拿到金鑰後這是第一個要驗的點。
+3. **（選用）算圖磁碟快取**：`OutputCache` / `generated_outputs` 資料表已存在但尚未接上 delivery 流程；高流量時可加，避免重複算圖。
+4. **（備援）Anthropic / Bedrock**：兩者程式都已備妥，改 `.env` 即可切。Bedrock 目前受阻於專案 npm 依賴樹壞掉（`knip`/`eslint-utils` peer 衝突使 `npm install` 全數失敗）——若日後要用，需先修依賴樹再 `npm i @anthropic-ai/bedrock-sdk`。
 
 ---
 
 ## 現況驗證指令（不需金鑰）
 
 ```bash
-pnpm install      # 安裝相依套件
-pnpm test         # 執行全部測試（目前 65 個通過）
-pnpm build        # TypeScript strict 編譯檢查
+npm install      # 安裝相依套件（若換過 Node 版本，跑 npm rebuild better-sqlite3）
+npm test         # 執行全部測試（目前 86 個通過）
+npm run build    # TypeScript strict 編譯檢查
 ```

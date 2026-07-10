@@ -1,16 +1,18 @@
 import Database from "better-sqlite3";
 import { DriveClient } from "./drive-client";
 import { scanDriveRoot } from "./scanner";
+import { extractIntrinsicDimensions } from "./file-metadata";
 import { AiBuilder } from "../catalog/ai-builder";
 import { CatalogRepo } from "../catalog/catalog-repo";
 import { OverrideRepo } from "../catalog/override-repo";
 import { exportReviewReports } from "../catalog/review-export";
+import { AiProvider } from "../ai/provider";
 
 export interface ScanOptions {
   driveClient: DriveClient;
   rootFolderId: string;
   db: Database.Database;
-  apiKey: string;
+  aiProvider: AiProvider;
   outputDir: string;
 }
 
@@ -23,10 +25,10 @@ export interface ScanSummary {
 }
 
 export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
-  const { driveClient, rootFolderId, db, apiKey, outputDir } = options;
+  const { driveClient, rootFolderId, db, aiProvider, outputDir } = options;
   const repo = new CatalogRepo(db);
   const overrideRepo = new OverrideRepo(db);
-  const aiBuilder = new AiBuilder(apiKey);
+  const aiBuilder = new AiBuilder(aiProvider);
 
   const runId = repo.startScannerRun();
 
@@ -36,9 +38,17 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
   let ignored = 0;
 
   for (const file of scanResult.files) {
-    // In production, download file content from Drive to extract dimensions.
-    // Dimensions are populated after download; null here.
-    const dimensions = null;
+    // Download raster/vector content so we can record intrinsic dimensions.
+    // Unsupported formats (AI/EPS) and download failures leave dimensions null.
+    let dimensions = null;
+    if (file.mimeType === "image/svg+xml" || file.mimeType === "image/png") {
+      try {
+        const content = await driveClient.downloadFile(file.id);
+        dimensions = extractIntrinsicDimensions(content, file.mimeType);
+      } catch (err) {
+        console.warn(`Failed to download ${file.name} (${file.id}):`, err);
+      }
+    }
 
     const metadata = await aiBuilder.buildAssetMetadata(file, dimensions);
 
@@ -70,8 +80,8 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
       usage: metadata.usage,
       source_drive_file_id: file.id,
       source_path: `${file.parentPath}/${file.name}`,
-      intrinsic_width: null,
-      intrinsic_height: null,
+      intrinsic_width: dimensions ? dimensions.width : null,
+      intrinsic_height: dimensions ? dimensions.height : null,
       can_resize: format === "svg",
       status: "active",
       confidence: metadata.confidence,

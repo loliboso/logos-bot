@@ -58,6 +58,21 @@ export class DriveClient {
     return files;
   }
 
+  /** Download a file's raw bytes by id (used to extract dimensions / render). */
+  async downloadFile(fileId: string): Promise<Buffer> {
+    const res = await this.drive.files.get(
+      { fileId, alt: "media" },
+      { responseType: "arraybuffer" }
+    );
+    return Buffer.from(res.data as ArrayBuffer);
+  }
+
+  /** Public webViewLink for a file, so users can open the original in Drive. */
+  async getWebViewLink(fileId: string): Promise<string | null> {
+    const res = await this.drive.files.get({ fileId, fields: "webViewLink" });
+    return res.data.webViewLink || null;
+  }
+
   isFolder(file: DriveFile): boolean {
     return file.mimeType === FOLDER_MIME;
   }

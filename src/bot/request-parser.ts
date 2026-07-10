@@ -1,5 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { REQUEST_PARSE_SCHEMA } from "./request-schemas";
+import { AiProvider } from "../ai/provider";
 
 export interface ParsedRequest {
   brand: string | null;
@@ -12,15 +12,8 @@ export interface ParsedRequest {
   raw_text: string;
 }
 
-// Current, valid Claude model id (the source plan referenced a stale id).
-const AI_MODEL = "claude-sonnet-5";
-
 export class RequestParser {
-  private client: Anthropic;
-
-  constructor(apiKey: string) {
-    this.client = new Anthropic({ apiKey });
-  }
+  constructor(private provider: AiProvider) {}
 
   async parseUserRequest(text: string): Promise<ParsedRequest> {
     const prompt = `Parse this logo request from a company employee. Extract structured fields.
@@ -50,26 +43,18 @@ Dimension patterns:
 
 User request: "${text}"`;
 
-    const response = await this.client.messages.create({
-      model: AI_MODEL,
-      max_tokens: 512,
-      messages: [{ role: "user", content: prompt }],
-      tools: [
-        {
-          name: "parse_logo_request",
-          description: "Parse structured fields from a logo request",
-          input_schema: REQUEST_PARSE_SCHEMA,
-        },
-      ],
-      tool_choice: { type: "tool", name: "parse_logo_request" },
+    const parsed = await this.provider.generateStructured({
+      prompt,
+      toolName: "parse_logo_request",
+      toolDescription: "Parse structured fields from a logo request",
+      schema: REQUEST_PARSE_SCHEMA,
+      maxTokens: 512,
     });
 
-    const toolBlock = response.content.find((b) => b.type === "tool_use");
-    if (!toolBlock || toolBlock.type !== "tool_use") {
+    if (!parsed) {
       return { brand: null, format: null, color: null, language: null, asset_type: null, width: null, height: null, raw_text: text };
     }
 
-    const parsed = toolBlock.input as any;
-    return { ...parsed, raw_text: text };
+    return { ...parsed, raw_text: text } as ParsedRequest;
   }
 }

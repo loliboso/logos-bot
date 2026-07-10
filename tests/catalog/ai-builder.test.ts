@@ -1,6 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { AiBuilder } from "../../src/catalog/ai-builder";
 import { ScannedFile } from "../../src/scanner/scanner";
+import { AiProvider } from "../../src/ai/provider";
+
+// A provider stub. `output` is what generateStructured returns for AI-backed
+// calls; archive/campaign paths never reach the provider.
+function stubProvider(output: Record<string, any> | null = null): AiProvider {
+  return { generateStructured: async () => output };
+}
 
 const mockFile = (overrides: Partial<ScannedFile> = {}): ScannedFile => ({
   id: "file-1",
@@ -17,7 +24,7 @@ const mockFile = (overrides: Partial<ScannedFile> = {}): ScannedFile => ({
 describe("AiBuilder", () => {
   describe("inferBrandFromPath", () => {
     it("extracts brand id from first path segment", () => {
-      const builder = new AiBuilder("fake-key");
+      const builder = new AiBuilder(stubProvider());
       const result = builder.inferBrandFromPath("The News Lens 關鍵評論網/SVG");
       expect(result.brand_id).toBe("the-news-lens-關鍵評論網");
       expect(result.display_name).toBe("The News Lens 關鍵評論網");
@@ -26,7 +33,7 @@ describe("AiBuilder", () => {
 
   describe("buildAssetMetadata for archived files", () => {
     it("returns ignored status without calling AI", async () => {
-      const builder = new AiBuilder("fake-key");
+      const builder = new AiBuilder(stubProvider());
       const file = mockFile({ folderSemantics: "archive", parentPath: "The News Lens 關鍵評論網/封存" });
       const result = await builder.buildAssetMetadata(file, null);
       expect(result.review_status).toBe("ignored");
@@ -37,7 +44,7 @@ describe("AiBuilder", () => {
 
   describe("buildAssetMetadata for campaign files", () => {
     it("returns ignored status without calling AI", async () => {
-      const builder = new AiBuilder("fake-key");
+      const builder = new AiBuilder(stubProvider());
       const file = mockFile({ folderSemantics: "campaign", parentPath: "The News Lens 關鍵評論網/十週年CI" });
       const result = await builder.buildAssetMetadata(file, null);
       expect(result.review_status).toBe("ignored");
@@ -47,33 +54,21 @@ describe("AiBuilder", () => {
 
   describe("buildAssetMetadata for normal files", () => {
     it("calls AI and returns structured metadata", async () => {
-      const builder = new AiBuilder("fake-key");
-
-      // Mock the Anthropic client
-      const mockResponse = {
-        content: [
-          {
-            type: "tool_use" as const,
-            id: "call-1",
-            name: "record_asset_metadata",
-            input: {
-              asset_type: "logo",
-              variant: "logo",
-              language: null,
-              color: "blue",
-              background: "transparent",
-              layout: "horizontal",
-              usage: ["general"],
-              confidence: 0.93,
-              inferred_from: ["file_name", "folder_name"],
-              review_status: "accepted",
-              review_reason: null,
-            },
-          },
-        ],
-      };
-
-      vi.spyOn((builder as any).client.messages, "create").mockResolvedValue(mockResponse);
+      const builder = new AiBuilder(
+        stubProvider({
+          asset_type: "logo",
+          variant: "logo",
+          language: null,
+          color: "blue",
+          background: "transparent",
+          layout: "horizontal",
+          usage: ["general"],
+          confidence: 0.93,
+          inferred_from: ["file_name", "folder_name"],
+          review_status: "accepted",
+          review_reason: null,
+        })
+      );
 
       const file = mockFile();
       const dims = { viewBoxWidth: 300, viewBoxHeight: 100, width: 300, height: 100 };
