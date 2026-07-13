@@ -18,11 +18,11 @@ export function registerCommands(
   conversations: ConversationStore,
   driveClient: DriveClient
 ): void {
-  app.command("/logo", async ({ command, ack, respond }) => {
+  app.command("/logos", async ({ command, ack, respond }) => {
     await ack();
     const text = command.text.trim();
     if (!text) {
-      await respond(buildErrorMessage("請輸入你需要的 Logo 描述，例如：/logo TNL 藍色 SVG"));
+      await respond(buildErrorMessage("請輸入你需要的 Logo 描述，例如：/logos TNL 藍色 SVG"));
       return;
     }
 

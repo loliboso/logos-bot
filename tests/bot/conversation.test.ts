@@ -52,6 +52,54 @@ describe("ConversationManager", () => {
     expect(question?.field).toBe("size");
   });
 
+  it("offers only concrete formats when a format is required", () => {
+    const parsed: ParsedRequest = { brand: "TNL", format: null, color: null, language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    state.resolvedBrandId = "the-news-lens";
+
+    const question = manager.getNextQuestion(state, [twoBrands[0]], sampleAssets);
+
+    expect(question?.field).toBe("format");
+    expect(question?.options?.map((option) => option.value)).toEqual(["svg", "png"]);
+  });
+
+  it("asks for dimensions after the user chooses a custom size", () => {
+    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    state.resolvedBrandId = "the-news-lens";
+
+    const updated = manager.applyAnswer(state, "size", "custom");
+    const question = manager.getNextQuestion(updated, [twoBrands[0]], sampleAssets);
+
+    expect(question).toMatchObject({ field: "custom_size" });
+    expect(question?.text).toContain("800x600");
+  });
+
+  it("does not re-ask size after the user chooses the original size", () => {
+    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    state.resolvedBrandId = "the-news-lens";
+
+    // Sanity: size is the outstanding question.
+    expect(manager.getNextQuestion(state, [twoBrands[0]], sampleAssets)?.field).toBe("size");
+
+    const updated = manager.applyAnswer(state, "size", "original");
+    const question = manager.getNextQuestion(updated, [twoBrands[0]], sampleAssets);
+
+    expect(question).toBeNull();
+    expect(manager.isComplete(updated)).toBe(true);
+  });
+
+  it("accepts a custom dimension reply", () => {
+    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const state = manager.startConversation("user1", "ch1", parsed);
+
+    const updated = manager.applyCustomSizeInput(state, "800 x 600");
+
+    expect(updated?.parsed.width).toBe(800);
+    expect(updated?.parsed.height).toBe(600);
+  });
+
   it("applyAnswer updates state correctly", () => {
     const parsed: ParsedRequest = { brand: "TNL", format: null, color: null, language: null, asset_type: null, width: null, height: null, raw_text: "test" };
     const state = manager.startConversation("user1", "ch1", parsed);

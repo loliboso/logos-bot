@@ -26,6 +26,33 @@ export function registerDmHandler(
     const userId = (message as any).user as string;
     const channelId = (message as any).channel as string;
 
+    const pendingState = conversations.get(userId);
+    if (pendingState?.awaitingCustomSize) {
+      const state = conversationManager.applyCustomSizeInput(pendingState, text);
+      if (!state) {
+        await say(buildErrorMessage("請以「寬x高」輸入尺寸，例如 800x600。"));
+        return;
+      }
+
+      conversations.delete(userId);
+      const result = resolver.resolve(state);
+      if (!result) {
+        await say(buildErrorMessage("找不到符合條件的 Logo，請嘗試其他描述。"));
+        return;
+      }
+
+      const ports = createDeliveryPorts({
+        driveClient,
+        respond: say,
+        maxOutputSize: config.MAX_OUTPUT_SIZE,
+        uploadPng: async (buffer, filename, title) => {
+          await client.files.uploadV2({ channel_id: channelId, file: buffer, filename, title });
+        },
+      });
+      await handleResolvedAsset(result, ports);
+      return;
+    }
+
     const parsed = await parser.parseUserRequest(text);
     const state = conversationManager.startConversation(userId, channelId, parsed);
 

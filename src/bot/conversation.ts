@@ -15,6 +15,13 @@ export interface ConversationState {
   parsed: ParsedRequest;
   resolvedBrandId: string | null;
   resolvedAssetId: string | null;
+  awaitingCustomSize: boolean;
+  /**
+   * Whether the size question has been answered. Needed because "original size"
+   * leaves width/height null — the same as "not yet asked" — so without this we
+   * would re-ask the size question forever.
+   */
+  sizeResolved: boolean;
   step: ConversationStep;
   startedAt: string;
 }
@@ -33,6 +40,8 @@ export class ConversationManager {
       parsed,
       resolvedBrandId: null,
       resolvedAssetId: null,
+      awaitingCustomSize: false,
+      sizeResolved: false,
       step: "brand_select",
       startedAt: new Date().toISOString(),
     };
@@ -43,6 +52,13 @@ export class ConversationManager {
     brands: BrandRecord[],
     assets: AssetRecord[]
   ): Question | null {
+    if (state.awaitingCustomSize) {
+      return {
+        text: "請輸入自訂尺寸（例如 800x600）：",
+        field: "custom_size",
+      };
+    }
+
     if (!state.parsed.brand && !state.resolvedBrandId) {
       return null; // Cannot proceed without any brand hint
     }
@@ -70,7 +86,6 @@ export class ConversationManager {
           field: "format",
           options: [
             ...formats.map((f) => ({ label: f.toUpperCase(), value: f })),
-            { label: "不確定", value: "any" },
           ],
         };
       }
@@ -100,8 +115,10 @@ export class ConversationManager {
       }
     }
 
-    // Size selection (only ask if no size provided and asset can be resized)
-    if (state.parsed.width === null && state.parsed.height === null) {
+    // Size selection (only ask if no size provided, not already answered, and
+    // asset can be resized). sizeResolved distinguishes "chose original" (also
+    // width/height null) from "not yet asked".
+    if (!state.sizeResolved && state.parsed.width === null && state.parsed.height === null) {
       const resizableCount = assets.filter((a) => a.can_resize).length;
       if (resizableCount > 0) {
         return {
@@ -134,11 +151,12 @@ export class ConversationManager {
         next.parsed.color = value;
         break;
       case "size":
+        next.sizeResolved = true;
         if (value === "original") {
           next.parsed.width = null;
           next.parsed.height = null;
         } else if (value === "custom") {
-          // Will need follow-up text input
+          next.awaitingCustomSize = true;
           break;
         } else {
           const [w, h] = value.split("x").map(Number);
@@ -150,6 +168,17 @@ export class ConversationManager {
         (next.parsed as any)[field] = value;
     }
 
+    return next;
+  }
+
+  applyCustomSizeInput(state: ConversationState, value: string): ConversationState | null {
+    const match = value.trim().match(/^(\d+)\s*[xX×]\s*(\d+)$/);
+    if (!match) return null;
+
+    const next = { ...state, parsed: { ...state.parsed } };
+    next.parsed.width = Number(match[1]);
+    next.parsed.height = Number(match[2]);
+    next.awaitingCustomSize = false;
     return next;
   }
 

@@ -16,9 +16,9 @@
 
 | 設定項目 | 做什麼 | 對應 .env 變數 |
 |---------|--------|---------------|
-| Socket Mode | 開啟，並產生 App-Level Token（`xapp-...`） | `SLACK_APP_TOKEN` |
-| OAuth & Permissions | 加 Bot Token Scopes（見下），安裝到工作區後取得 `xoxb-...` | `SLACK_BOT_TOKEN` |
-| Basic Information | 取得 Signing Secret | `SLACK_SIGNING_SECRET` |
+| Socket Mode | 開啟，並產生 App-Level Token（`xapp-...cf51`） | `SLACK_APP_TOKEN` |
+| OAuth & Permissions | 加 Bot Token Scopes（見下），安裝到工作區後取得 `xoxb-...D1eSy6` | `SLACK_BOT_TOKEN` |
+| Basic Information | 取得 Signing Secret `be7...91` | `SLACK_SIGNING_SECRET` |
 | Slash Commands | 新增一個 `/logo` 指令 | — |
 | Event Subscriptions | 訂閱 Bot Event：`message.im` | — |
 | Interactivity & Shortcuts | 開啟（按鈕互動才會運作） | — |
@@ -63,12 +63,13 @@
 
 | 供應商 | 設定 | 狀態 |
 |--------|------|------|
-| **Gemini**（目前選定） | `AI_PROVIDER=gemini` + `GEMINI_API_KEY`（選填 `GEMINI_MODEL`，預設 `gemini-2.5-flash`） | ✅ 已實作（`src/ai/gemini-provider.ts`，用 REST 免裝套件） |
+| **Vertex AI Gemini**（目前選定） | `AI_PROVIDER=vertex` + `VERTEX_PROJECT_ID` + 現有 service account（選填 `VERTEX_LOCATION`，預設 `global`） | ✅ 已實作（以 service account OAuth 呼叫 Vertex AI REST） |
+| Google AI Studio Gemini（備援） | `AI_PROVIDER=gemini` + `GEMINI_API_KEY` | ✅ 已實作 |
 | Anthropic Claude | `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`（sk-ant-...） | ✅ 已實作 |
 
 > **決策脈絡：** 公司是 Google Workspace + GCP，選 Gemini 讓計費與整合統一。（另有一條路：啟動 Claude Code 的環境本身跑在 AWS Bedrock 上，理論上公司 AWS 帳號已有 Claude 存取；但此專案 npm 依賴樹壞掉裝不了 bedrock-sdk，故先走 Gemini。三條路的程式都已備妥，日後可改 `.env` 切換。）
 
-**申請 Gemini 金鑰：** 到 Google AI Studio（https://aistudio.google.com/apikey）建立 API key → 填入 `GEMINI_API_KEY`。
+**公司正式環境（目前採用）：** 在 GCP 專案啟用 Vertex AI API、連結 Billing，並對現有 service account 授予 `roles/aiplatform.user`。程式以該 service account 取得短期 OAuth token，不需 Google AI Studio API key。
 
 > **要問 IT 的問題：** 用哪個 GCP 專案／計費帳戶開 Gemini？用量成本由誰負擔？公司對「將檔名／使用者訊息傳給 Gemini」有無資安或隱私規範（注意：Google AI Studio 免費層可能會用資料訓練，正式使用建議走付費層或 Vertex AI）？
 
@@ -89,10 +90,11 @@ SLACK_APP_TOKEN=xapp-...
 GOOGLE_SERVICE_ACCOUNT_KEY_PATH=/Users/you/logos-bot-secrets/service-account.json
 # GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}   # 備用：整包貼上
 DRIVE_ROOT_FOLDER_ID=1Y6avk_W5jRsl5Ab-PWiBvOo_AFGoFEv2
-# AI 供應商：目前選 Gemini。改 anthropic 只需換這兩行。
-AI_PROVIDER=gemini
-GEMINI_API_KEY=...
-# GEMINI_MODEL=gemini-2.5-flash   # 選填
+# AI 供應商：目前選 Vertex AI Gemini，沿用上方 service account。
+AI_PROVIDER=vertex
+VERTEX_PROJECT_ID=slack-drive-integration-502007
+VERTEX_LOCATION=global
+GEMINI_MODEL=gemini-2.5-flash
 # AI_PROVIDER=anthropic
 # ANTHROPIC_API_KEY=sk-ant-...
 DATABASE_PATH=./data/catalog.db
@@ -158,18 +160,17 @@ MAX_OUTPUT_SIZE=4000
 ### B4. 共用對話狀態 ✅
 - 新增 `src/bot/conversation-store.ts`（`ConversationStore`），`index.ts` 建立單一實例注入兩個 handler。多輪對話不再中斷。
 
-### AI 供應商介面 ✅（可切換 Gemini / Anthropic）
-- 新增 `src/ai/provider.ts`（`AiProvider` 介面）、`src/ai/anthropic-provider.ts`、`src/ai/gemini-provider.ts`、`src/ai/factory.ts`。
+### AI 供應商介面 ✅（可切換 Vertex / Gemini / Anthropic）
+- 新增 `src/ai/provider.ts`（`AiProvider` 介面）、`src/ai/vertex-provider.ts`、`src/ai/anthropic-provider.ts`、`src/ai/gemini-provider.ts`、`src/ai/factory.ts`。
 - `RequestParser` 與 `AiBuilder` 依賴 `AiProvider`；`index.ts` / `scan.ts` 改用 `createAiProvider()`，依 `.env` 自動選供應商。
-- **Gemini provider 用 REST + Node 內建 fetch，不裝任何套件**（避開此專案壞掉的 npm 依賴樹），用 function calling 強制模式 ANY 取得結構化輸出。
-- **切換供應商 = 改 `.env`**：`AI_PROVIDER=gemini`（+`GEMINI_API_KEY`）或 `AI_PROVIDER=anthropic`（+`ANTHROPIC_API_KEY`）。程式與測試都不用動。
+- **Vertex provider 用 REST + 現有 `googleapis` 取得 service-account OAuth token**，用 function calling 強制模式 ANY 取得結構化輸出。
+- **切換供應商 = 改 `.env`**：`AI_PROVIDER=vertex`（+`VERTEX_PROJECT_ID` + service account）、`gemini`（+`GEMINI_API_KEY`）或 `anthropic`（+`ANTHROPIC_API_KEY`）。程式與測試都不用動。
 
 ---
 
 ## 尚待決定 / 下一步
 
-1. **申請 Gemini 金鑰**：Google AI Studio 建 API key → 填 `GEMINI_API_KEY`。（待你/IT 處理；見 Part A 第 3 項。）
-2. **實機端到端測試**：填好 `.env`（Slack tokens + `GEMINI_API_KEY`）後，先 `npm run scan` 建目錄，再 `npm run dev` 啟動 bot，於 Slack 實測 `/logo` 與 DM。Gemini provider 已寫好並通過單元測試，但因需金鑰尚未做過真實 API 呼叫——拿到金鑰後這是第一個要驗的點。
+1. **實機端到端測試**：填好 `.env`（Slack tokens + Vertex 設定）後，先 `npm run scan` 建目錄，再 `npm run dev` 啟動 bot，於 Slack 實測 `/logo` 與 DM。Vertex provider 已以 service account 串接，仍需以真實 API 呼叫驗證 IAM、Billing 與 API 狀態。
 3. **（選用）算圖磁碟快取**：`OutputCache` / `generated_outputs` 資料表已存在但尚未接上 delivery 流程；高流量時可加，避免重複算圖。
 4. **（備援）Anthropic / Bedrock**：兩者程式都已備妥，改 `.env` 即可切。Bedrock 目前受阻於專案 npm 依賴樹壞掉（`knip`/`eslint-utils` peer 衝突使 `npm install` 全數失敗）——若日後要用，需先修依賴樹再 `npm i @anthropic-ai/bedrock-sdk`。
 

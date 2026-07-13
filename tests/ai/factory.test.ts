@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createAiProvider } from "../../src/ai/factory";
 import { GeminiProvider } from "../../src/ai/gemini-provider";
 import { AnthropicProvider } from "../../src/ai/anthropic-provider";
+import { VertexProvider } from "../../src/ai/vertex-provider";
 
 describe("createAiProvider", () => {
   it("returns GeminiProvider when AI_PROVIDER=gemini", () => {
@@ -12,6 +13,15 @@ describe("createAiProvider", () => {
   it("returns AnthropicProvider when AI_PROVIDER=anthropic", () => {
     const p = createAiProvider({ AI_PROVIDER: "anthropic", ANTHROPIC_API_KEY: "a-key" });
     expect(p).toBeInstanceOf(AnthropicProvider);
+  });
+
+  it("returns VertexProvider when AI_PROVIDER=vertex", () => {
+    const p = createAiProvider({
+      AI_PROVIDER: "vertex",
+      VERTEX_PROJECT_ID: "slack-drive-integration-502007",
+      GOOGLE_SERVICE_ACCOUNT_KEY: "{}",
+    });
+    expect(p).toBeInstanceOf(VertexProvider);
   });
 
   it("defaults to Gemini when GEMINI_API_KEY is set and no explicit provider", () => {
