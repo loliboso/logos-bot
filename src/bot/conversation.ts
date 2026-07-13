@@ -1,5 +1,6 @@
 import { ParsedRequest } from "./request-parser";
 import { BrandRecord, AssetRecord } from "../catalog/catalog-repo";
+import { colorLabel } from "./labels";
 
 export type ConversationStep =
   | "brand_select"
@@ -98,16 +99,10 @@ export class ConversationManager {
     if (!state.parsed.color) {
       const colors = [...new Set(assets.filter((a) => a.color).map((a) => a.color!))];
       if (colors.length > 1) {
-        const colorLabels: Record<string, string> = {
-          blue: "主色（藍）",
-          black: "黑色",
-          white: "白色",
-          primary: "主色",
-        };
         return {
           text: "要哪個版本？",
           field: "color",
-          options: colors.map((c) => ({ label: colorLabels[c] || c, value: c })),
+          options: colors.map((c) => ({ label: colorLabel(c), value: c })),
         };
       }
       if (colors.length === 1) {

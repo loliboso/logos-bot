@@ -5,6 +5,7 @@ import { ConversationStore } from "./conversation-store";
 import { AssetResolver } from "./asset-resolver";
 import { CatalogRepo, BrandRecord } from "../catalog/catalog-repo";
 import { buildQuestionMessage, buildErrorMessage } from "./response-builder";
+import { buildNoMatchMessage } from "./no-match";
 import { DriveClient } from "../scanner/drive-client";
 import { config } from "../config";
 import { createDeliveryPorts, handleResolvedAsset } from "./delivery";
@@ -48,7 +49,9 @@ export function registerCommands(
         });
         await handleResolvedAsset(result, ports);
       } else {
-        await respond(buildErrorMessage("找不到符合條件的 Logo，請嘗試其他描述。"));
+        const noMatch = buildNoMatchMessage(state, repo);
+        if (noMatch.state) conversations.set(command.user_id, noMatch.state);
+        await respond(noMatch.message);
       }
       return;
     }
@@ -84,9 +87,9 @@ export function registerCommands(
     const question = conversationManager.getNextQuestion(updated, brands, assets);
 
     if (!question && conversationManager.isComplete(updated)) {
-      conversations.delete(userId);
       const result = resolver.resolve(updated);
       if (result) {
+        conversations.delete(userId);
         const channelId = (body as any).channel?.id as string | undefined;
         const ports = createDeliveryPorts({
           driveClient,
@@ -100,7 +103,10 @@ export function registerCommands(
         });
         await handleResolvedAsset(result, ports);
       } else {
-        await respond(buildErrorMessage("找不到符合條件的 Logo。"));
+        const noMatch = buildNoMatchMessage(updated, repo);
+        if (noMatch.state) conversations.set(userId, noMatch.state);
+        else conversations.delete(userId);
+        await respond(noMatch.message);
       }
       return;
     }

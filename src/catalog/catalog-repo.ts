@@ -99,6 +99,13 @@ export class CatalogRepo {
     return rows.map(this.toBrandRecord);
   }
 
+  getBrandById(brandId: string): BrandRecord | null {
+    const row = this.db
+      .prepare(`SELECT * FROM brands WHERE id = @brandId`)
+      .get({ brandId }) as any;
+    return row ? this.toBrandRecord(row) : null;
+  }
+
   getActiveAssets(brandId: string): AssetRecord[] {
     const rows = this.db
       .prepare(

@@ -19,7 +19,7 @@
 | Socket Mode | 開啟，並產生 App-Level Token（`xapp-...cf51`） | `SLACK_APP_TOKEN` |
 | OAuth & Permissions | 加 Bot Token Scopes（見下），安裝到工作區後取得 `xoxb-...D1eSy6` | `SLACK_BOT_TOKEN` |
 | Basic Information | 取得 Signing Secret `be7...91` | `SLACK_SIGNING_SECRET` |
-| Slash Commands | 新增一個 `/logo` 指令 | — |
+| Slash Commands | 新增一個 `/logos` 指令 | — |
 | Event Subscriptions | 訂閱 Bot Event：`message.im` | — |
 | Interactivity & Shortcuts | 開啟（按鈕互動才會運作） | — |
 
@@ -107,7 +107,7 @@ MAX_OUTPUT_SIZE=4000
 
 ### 先破除一個常見誤解：同事「不會」碰到金鑰
 
-這是「一個」長期運行的伺服器程式（Socket Mode 長連線），跑在**某一台機器/服務上**。同事是透過 **Slack 這個介面**去用它——打 `/logo`、收檔案，全程在 Slack 裡。
+這是「一個」長期運行的伺服器程式（Socket Mode 長連線），跑在**某一台機器/服務上**。同事是透過 **Slack 這個介面**去用它——打 `/logos`、收檔案，全程在 Slack 裡。
 
 ```
 同事 A ─┐
@@ -170,7 +170,7 @@ MAX_OUTPUT_SIZE=4000
 
 ## 尚待決定 / 下一步
 
-1. **實機端到端測試**：填好 `.env`（Slack tokens + Vertex 設定）後，先 `npm run scan` 建目錄，再 `npm run dev` 啟動 bot，於 Slack 實測 `/logo` 與 DM。Vertex provider 已以 service account 串接，仍需以真實 API 呼叫驗證 IAM、Billing 與 API 狀態。
+1. **實機端到端測試**：填好 `.env`（Slack tokens + Vertex 設定）後，先 `npm run scan` 建目錄，再 `npm run dev` 啟動 bot，於 Slack 實測 `/logos` 與 DM。Vertex provider 已以 service account 串接，仍需以真實 API 呼叫驗證 IAM、Billing 與 API 狀態。
 3. **（選用）算圖磁碟快取**：`OutputCache` / `generated_outputs` 資料表已存在但尚未接上 delivery 流程；高流量時可加，避免重複算圖。
 4. **（備援）Anthropic / Bedrock**：兩者程式都已備妥，改 `.env` 即可切。Bedrock 目前受阻於專案 npm 依賴樹壞掉（`knip`/`eslint-utils` peer 衝突使 `npm install` 全數失敗）——若日後要用，需先修依賴樹再 `npm i @anthropic-ai/bedrock-sdk`。
 

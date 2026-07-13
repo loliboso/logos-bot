@@ -6,6 +6,7 @@ import { AssetResolver } from "./asset-resolver";
 import { CatalogRepo } from "../catalog/catalog-repo";
 import { OutputCache } from "../renderer/cache";
 import { buildQuestionMessage, buildErrorMessage } from "./response-builder";
+import { buildNoMatchMessage } from "./no-match";
 import { config } from "../config";
 import { DriveClient } from "../scanner/drive-client";
 import { createDeliveryPorts, handleResolvedAsset } from "./delivery";
@@ -34,12 +35,15 @@ export function registerDmHandler(
         return;
       }
 
-      conversations.delete(userId);
       const result = resolver.resolve(state);
       if (!result) {
-        await say(buildErrorMessage("找不到符合條件的 Logo，請嘗試其他描述。"));
+        const noMatch = buildNoMatchMessage(state, repo);
+        if (noMatch.state) conversations.set(userId, noMatch.state);
+        else conversations.delete(userId);
+        await say(noMatch.message);
         return;
       }
+      conversations.delete(userId);
 
       const ports = createDeliveryPorts({
         driveClient,
@@ -75,7 +79,9 @@ export function registerDmHandler(
         });
         await handleResolvedAsset(result, ports);
       } else {
-        await say(buildErrorMessage("找不到符合條件的 Logo，請嘗試其他描述。"));
+        const noMatch = buildNoMatchMessage(state, repo);
+        if (noMatch.state) conversations.set(userId, noMatch.state);
+        await say(noMatch.message);
       }
       return;
     }
