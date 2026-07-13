@@ -39,9 +39,9 @@ export function registerCommands(
     if (!question && conversationManager.isComplete(state)) {
       const result = resolver.resolve(state);
       if (result) {
-        // Slash-command responses are ephemeral and can't upload files; a
-        // custom-size request here is told to use DM instead (handled by the
-        // default uploadPng fallback in createDeliveryPorts).
+        // Slash-command responses are ephemeral and can't upload files. With no
+        // uploadFile provided, delivery falls back to asking the user to DM the
+        // bot instead of handing back an inaccessible Drive link.
         const ports = createDeliveryPorts({
           driveClient,
           respond,
@@ -95,7 +95,7 @@ export function registerCommands(
           driveClient,
           respond,
           maxOutputSize: config.MAX_OUTPUT_SIZE,
-          uploadPng: channelId
+          uploadFile: channelId
             ? async (buffer, filename, title) => {
                 await client.files.uploadV2({ channel_id: channelId, file: buffer, filename, title });
               }

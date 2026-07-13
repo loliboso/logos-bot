@@ -65,19 +65,6 @@ export function buildDeliveryMessage(
   };
 }
 
-export function buildLinkMessage(link: string, fileName: string): SlackMessage {
-  const text = `下載連結：${link}`;
-  return {
-    text,
-    blocks: [
-      {
-        type: "section",
-        text: { type: "mrkdwn", text: `📎 <${link}|${fileName}>` },
-      },
-    ],
-  };
-}
-
 export function buildWhiteLogoWarning(): SlackMessage {
   return {
     text: "提醒：此 Logo 為白色透明背景，預覽可能不易辨識，但下載的檔案是正確的。",

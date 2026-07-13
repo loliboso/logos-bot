@@ -39,15 +39,14 @@ function makePorts(overrides: Partial<DeliveryPorts> = {}): DeliveryPorts {
   return {
     respond: vi.fn(async () => {}),
     downloadSource: vi.fn(async () => SVG_FIXTURE),
-    getLink: vi.fn(async () => "https://drive.google.com/file/d/file-1/view"),
-    uploadPng: vi.fn(async () => {}),
+    uploadFile: vi.fn(async () => true),
     maxOutputSize: 4000,
     ...overrides,
   };
 }
 
 describe("handleResolvedAsset — direct download (no custom size)", () => {
-  it("responds with the Drive link and does not upload", async () => {
+  it("uploads the original file bytes instead of returning a link", async () => {
     const ports = makePorts();
     const result: ResolvedAsset = {
       asset: makeAsset(),
@@ -58,11 +57,31 @@ describe("handleResolvedAsset — direct download (no custom size)", () => {
 
     await handleResolvedAsset(result, ports);
 
-    expect(ports.getLink).toHaveBeenCalledWith("file-1");
-    expect(ports.uploadPng).not.toHaveBeenCalled();
-    // The Drive link should appear in one of the responses.
+    // The original bytes are downloaded and uploaded to Slack, preserving the
+    // source filename so employees without Drive access still get the file.
+    expect(ports.downloadSource).toHaveBeenCalledWith("file-1");
+    expect(ports.uploadFile).toHaveBeenCalledOnce();
+    const [buffer, filename] = (ports.uploadFile as any).mock.calls[0];
+    expect(buffer).toEqual(SVG_FIXTURE);
+    expect(filename).toBe("logo-blue.svg");
+    // No Drive link should be handed back.
     const responded = (ports.respond as any).mock.calls.map((c: any[]) => JSON.stringify(c[0])).join(" ");
-    expect(responded).toContain("drive.google.com");
+    expect(responded).not.toContain("drive.google.com");
+  });
+
+  it("falls back to a DM notice when uploading is unavailable (ephemeral slash context)", async () => {
+    const ports = makePorts({ uploadFile: vi.fn(async () => false) });
+    const result: ResolvedAsset = {
+      asset: makeAsset(),
+      needsCustomSize: false,
+      requestedWidth: null,
+      requestedHeight: null,
+    };
+
+    await handleResolvedAsset(result, ports);
+
+    const responded = (ports.respond as any).mock.calls.map((c: any[]) => JSON.stringify(c[0])).join(" ");
+    expect(responded).toContain("私訊");
   });
 
   it("emits a white-logo warning for white transparent assets", async () => {
@@ -94,10 +113,10 @@ describe("handleResolvedAsset — custom size", () => {
     await handleResolvedAsset(result, ports);
 
     expect(ports.downloadSource).toHaveBeenCalledWith("file-1");
-    expect(ports.uploadPng).toHaveBeenCalledOnce();
+    expect(ports.uploadFile).toHaveBeenCalledOnce();
 
     // The uploaded buffer must be a real 500x500 PNG.
-    const [buffer, filename] = (ports.uploadPng as any).mock.calls[0];
+    const [buffer, filename] = (ports.uploadFile as any).mock.calls[0];
     const meta = await sharp(buffer as Buffer).metadata();
     expect(meta.width).toBe(500);
     expect(meta.height).toBe(500);
@@ -116,7 +135,7 @@ describe("handleResolvedAsset — custom size", () => {
     await handleResolvedAsset(result, ports);
 
     expect(ports.downloadSource).not.toHaveBeenCalled();
-    expect(ports.uploadPng).not.toHaveBeenCalled();
+    expect(ports.uploadFile).not.toHaveBeenCalled();
     const responded = (ports.respond as any).mock.calls.map((c: any[]) => JSON.stringify(c[0])).join(" ");
     expect(responded).toContain("4000");
   });

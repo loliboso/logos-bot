@@ -49,7 +49,7 @@ export function registerDmHandler(
         driveClient,
         respond: say,
         maxOutputSize: config.MAX_OUTPUT_SIZE,
-        uploadPng: async (buffer, filename, title) => {
+        uploadFile: async (buffer, filename, title) => {
           await client.files.uploadV2({ channel_id: channelId, file: buffer, filename, title });
         },
       });
@@ -73,7 +73,7 @@ export function registerDmHandler(
           driveClient,
           respond: say,
           maxOutputSize: config.MAX_OUTPUT_SIZE,
-          uploadPng: async (buffer, filename, title) => {
+          uploadFile: async (buffer, filename, title) => {
             await client.files.uploadV2({ channel_id: channelId, file: buffer, filename, title });
           },
         });
