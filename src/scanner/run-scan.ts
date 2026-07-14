@@ -15,30 +15,60 @@ export interface ScanOptions {
   db: Database.Database;
   aiProvider: AiProvider;
   outputDir: string;
+  /** Re-process every file, ignoring modifiedTime. Use after changing AI /
+   *  naming inference rules. Defaults to false (incremental). */
+  full?: boolean;
 }
 
 export interface ScanSummary {
   runId: number;
   totalFiles: number;
+  /** Files actually re-processed this run (new or changed; all files when full). */
+  processed: number;
+  /** Files skipped because their Drive modifiedTime was unchanged. */
+  unchanged: number;
+  /** Assets marked removed because their Drive source disappeared. */
+  removed: number;
   accepted: number;
   needsReview: number;
   ignored: number;
 }
 
 export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
-  const { driveClient, rootFolderId, db, aiProvider, outputDir } = options;
+  const { driveClient, rootFolderId, db, aiProvider, outputDir, full = false } = options;
   const repo = new CatalogRepo(db);
   const overrideRepo = new OverrideRepo(db);
   const aiBuilder = new AiBuilder(aiProvider);
 
   const runId = repo.startScannerRun();
 
+  // Snapshot existing catalog state keyed on Drive file id, so we can skip
+  // files whose modifiedTime is unchanged and detect ones that disappeared.
+  const priorState = repo.listAssetSourceState();
+  const priorByFileId = new Map(priorState.map((s) => [s.source_drive_file_id, s]));
+  const seenFileIds = new Set<string>();
+
   const scanResult = await scanDriveRoot(driveClient, rootFolderId);
   let accepted = 0;
   let needsReview = 0;
   let ignored = 0;
+  let processed = 0;
+  let unchanged = 0;
 
   for (const file of scanResult.files) {
+    seenFileIds.add(file.id);
+
+    // Incremental skip: an active asset whose Drive modifiedTime hasn't changed
+    // needs no download and no AI call. Requiring status='active' means a file
+    // that was previously removed (then reappeared) is re-processed and revived.
+    const prior = priorByFileId.get(file.id);
+    if (!full && prior && prior.status === "active" && prior.source_modified_time === file.modifiedTime) {
+      unchanged++;
+      continue;
+    }
+
+    processed++;
+
     // Download raster/vector content so we can record intrinsic dimensions.
     // Unsupported formats (AI/EPS) and download failures leave dimensions null.
     let dimensions = null;
@@ -81,6 +111,7 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
       usage: metadata.usage,
       source_drive_file_id: file.id,
       source_path: `${file.parentPath}/${file.name}`,
+      source_modified_time: file.modifiedTime,
       intrinsic_width: dimensions ? dimensions.width : null,
       intrinsic_height: dimensions ? dimensions.height : null,
       can_resize: format === "svg",
@@ -101,9 +132,30 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
     else ignored++;
   }
 
+  // Deletion detection: any active asset whose Drive source wasn't seen this
+  // run has disappeared from Drive — mark it removed so the bot stops offering
+  // it. Compute the diff in JS and apply in one transaction.
+  const toRemove = priorState.filter(
+    (s) => s.status === "active" && !seenFileIds.has(s.source_drive_file_id)
+  );
+  const removeAll = db.transaction((ids: string[]) => {
+    for (const id of ids) repo.markAssetRemoved(id);
+  });
+  removeAll(toRemove.map((s) => s.id));
+  const removed = toRemove.length;
+
   repo.completeScannerRun(runId, scanResult.files.length);
   exportReviewReports(db, outputDir);
   generateCoverageReport(db, outputDir);
 
-  return { runId, totalFiles: scanResult.files.length, accepted, needsReview, ignored };
+  return {
+    runId,
+    totalFiles: scanResult.files.length,
+    processed,
+    unchanged,
+    removed,
+    accepted,
+    needsReview,
+    ignored,
+  };
 }

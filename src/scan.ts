@@ -12,6 +12,8 @@ import { dirname, join } from "path";
  * credentials but not Slack tokens (config getters are lazy).
  */
 async function main(): Promise<void> {
+  const full = process.argv.includes("--full");
+
   mkdirSync(dirname(config.DATABASE_PATH), { recursive: true });
   const db = getDb(config.DATABASE_PATH);
   initDb(db);
@@ -22,17 +24,27 @@ async function main(): Promise<void> {
   mkdirSync(outputDir, { recursive: true });
 
   console.log("🔍 Scanning Drive folder:", config.DRIVE_ROOT_FOLDER_ID);
+  if (full) {
+    console.log("⚙️  --full: re-processing every file (ignoring modifiedTime)");
+  } else {
+    console.log("⚡ incremental: only new / changed files are re-processed");
+  }
+
   const summary = await runFullScan({
     driveClient,
     rootFolderId: config.DRIVE_ROOT_FOLDER_ID,
     db,
     aiProvider,
     outputDir,
+    full,
   });
 
   console.log("✅ Scan complete:");
   console.log(`   run #${summary.runId}`);
-  console.log(`   files:        ${summary.totalFiles}`);
+  console.log(`   files found:  ${summary.totalFiles}`);
+  console.log(`   processed:    ${summary.processed}`);
+  console.log(`   unchanged:    ${summary.unchanged}`);
+  console.log(`   removed:      ${summary.removed}`);
   console.log(`   accepted:     ${summary.accepted}`);
   console.log(`   needs review: ${summary.needsReview}`);
   console.log(`   ignored:      ${summary.ignored}`);

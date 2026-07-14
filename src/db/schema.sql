@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS assets (
   usage TEXT NOT NULL DEFAULT '["general"]',
   source_drive_file_id TEXT NOT NULL,
   source_path TEXT NOT NULL,
+  source_modified_time TEXT,
   intrinsic_width INTEGER,
   intrinsic_height INTEGER,
   can_resize INTEGER NOT NULL DEFAULT 0,
