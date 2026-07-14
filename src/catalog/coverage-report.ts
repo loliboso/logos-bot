@@ -24,7 +24,7 @@ export function generateCoverageReport(
     const assets = db.prepare(
       `SELECT format, color, language FROM assets WHERE brand_id=? AND status='active' AND review_status='accepted'`
     ).all(b.id) as any[];
-    const formats = [...new Set(assets.map((a) => a.format))].sort();
+    const formats = [...new Set(assets.map((a) => a.format).filter(Boolean))].sort();
     const colors = [...new Set(assets.map((a) => a.color).filter(Boolean))].sort();
     const langs = [...new Set(assets.map((a) => a.language).filter(Boolean))].sort();
 

@@ -83,8 +83,10 @@ export function registerCommands(
 
     const updated = conversationManager.applyAnswer(state, field, value);
     const brands: BrandRecord[] = updated.resolvedBrandId
-      ? [{ id: updated.resolvedBrandId } as BrandRecord]
-      : repo.findBrandByAlias(updated.parsed.brand || "");
+      ? [repo.getBrandById(updated.resolvedBrandId)].filter((b): b is NonNullable<typeof b> => b !== null)
+      : updated.parsed.brandCandidates
+          .map((id) => repo.getBrandById(id))
+          .filter((b): b is NonNullable<typeof b> => b !== null);
     const assets = updated.resolvedBrandId ? repo.getActiveAssets(updated.resolvedBrandId) : [];
     const question = conversationManager.getNextQuestion(updated, brands, assets);
 

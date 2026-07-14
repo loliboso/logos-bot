@@ -23,6 +23,7 @@ async function main(): Promise<void> {
   const repo = new CatalogRepo(db);
   const cache = new OutputCache(db);
   const brandConfig = loadBrandConfig();
+  // Brand→alias table is loaded once at boot; brands added by a scan while the bot is running require a restart to be matchable.
   const allBrands = repo.getAllBrands();
   const matcher = new BrandMatcher(allBrands, brandConfig);
   const parser = new RequestParser(matcher);
