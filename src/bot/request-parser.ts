@@ -10,6 +10,7 @@ export interface ParsedRequest {
   asset_type: string | null;
   width: number | null;
   height: number | null;
+  background: "transparent" | "white" | "black" | null;
   raw_text: string;
 }
 
