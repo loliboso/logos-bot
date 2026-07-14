@@ -158,4 +158,49 @@ describe("AssetResolver", () => {
     const result = resolver.resolve(state);
     expect(result?.background).toBe("white");
   });
+
+  it("returns .ai asset when custom size requested but only .ai available", () => {
+    // Add an .ai-only asset
+    const aiAsset: AssetRecord = {
+      id: "ai-blue",
+      brand_id: "the-news-lens",
+      asset_type: "logo",
+      variant: "logo",
+      language: null,
+      format: "ai",
+      color: "blue",
+      background: "transparent",
+      layout: "horizontal",
+      usage: ["general"],
+      source_drive_file_id: "f3",
+      source_path: "TNL/AI/logo-blue.ai",
+      intrinsic_width: null,
+      intrinsic_height: null,
+      can_resize: false,
+      status: "active",
+      confidence: 0.9,
+      inferred_from: [],
+      review_status: "accepted",
+      review_reason: null,
+      scanner_run_id: null,
+    };
+    repo.upsertAsset(aiAsset);
+
+    // Request custom size with only .ai available
+    const state: ConversationState = {
+      userId: "u1",
+      channelId: "c1",
+      parsed: { brand: "TNL", format: "ai", color: "blue", language: null, asset_type: null, width: 800, height: 600, raw_text: "" },
+      resolvedBrandId: "the-news-lens",
+      resolvedAssetId: null,
+      step: "done",
+      startedAt: "",
+    };
+    const result = resolver.resolve(state);
+    expect(result).not.toBeNull();
+    expect(result?.asset.id).toBe("ai-blue");
+    expect(result?.asset.format).toBe("ai");
+    // .ai cannot be resized, so delivery should treat it as direct download
+    expect(result?.needsCustomSize).toBe(false);
+  });
 });

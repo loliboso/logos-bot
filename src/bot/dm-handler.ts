@@ -62,6 +62,21 @@ export function registerDmHandler(
         return;
       }
 
+      // After applying custom size, check if there are more questions (e.g. background)
+      const brands = state.resolvedBrandId
+        ? [repo.getBrandById(state.resolvedBrandId)].filter((b): b is NonNullable<typeof b> => b !== null)
+        : [];
+      const assets = state.resolvedBrandId ? repo.getActiveAssets(state.resolvedBrandId) : [];
+      const question = conversationManager.getNextQuestion(state, brands, assets);
+
+      if (question) {
+        // Still have questions to ask (e.g. background)
+        conversations.set(userId, state);
+        await say(buildQuestionMessage(question));
+        return;
+      }
+
+      // No more questions: proceed to resolution and delivery.
       // Custom-size rendering downloads + renders + uploads: show a notice.
       const clearNotice = await postProcessing(client as any, channelId);
       try {
