@@ -139,4 +139,27 @@ describe("handleResolvedAsset — custom size", () => {
     const responded = (ports.respond as any).mock.calls.map((c: any[]) => JSON.stringify(c[0])).join(" ");
     expect(responded).toContain("4000");
   });
+
+  it("renders with the chosen background and skips white-logo warning on black bg", async () => {
+    // Generate a tiny valid white PNG for the test
+    const tinyWhitePng = await sharp({
+      create: { width: 100, height: 100, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 0 } }
+    }).png().toBuffer();
+
+    const calls: any = { rendered: null, messages: [] };
+    const ports = {
+      respond: async (m: any) => { calls.messages.push(m); },
+      downloadSource: async () => tinyWhitePng,
+      uploadFile: async () => true,
+      maxOutputSize: 4000,
+    };
+    const result = {
+      asset: { id: "a1", source_path: "b/x.png", format: "png", color: "white", background: "transparent", source_drive_file_id: "file-1" },
+      needsCustomSize: true, requestedWidth: 500, requestedHeight: 500, background: "black",
+    } as any;
+    // The key assertion: no white-logo warning was posted when user chose black bg.
+    await handleResolvedAsset(result, ports as any);
+    const warned = calls.messages.some((m: any) => JSON.stringify(m).includes("白色"));
+    expect(warned).toBe(false);
+  });
 });
