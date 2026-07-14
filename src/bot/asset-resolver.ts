@@ -6,6 +6,7 @@ export interface ResolvedAsset {
   needsCustomSize: boolean;
   requestedWidth: number | null;
   requestedHeight: number | null;
+  background: "transparent" | "white" | "black" | null;
 }
 
 export class AssetResolver {
@@ -32,6 +33,7 @@ export class AssetResolver {
       needsCustomSize: wantsCustomSize,
       requestedWidth: state.parsed.width,
       requestedHeight: state.parsed.height,
+      background: state.parsed.background,
     };
   }
 

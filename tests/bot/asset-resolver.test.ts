@@ -144,4 +144,18 @@ describe("AssetResolver", () => {
     const result = resolver.resolve(state);
     expect(result).toBeNull();
   });
+
+  it("carries the chosen background into ResolvedAsset", () => {
+    const state: ConversationState = {
+      userId: "u1",
+      channelId: "c1",
+      parsed: { brand: "TNL", format: "png", color: "blue", language: null, asset_type: null, width: null, height: null, background: "white", raw_text: "" },
+      resolvedBrandId: "the-news-lens",
+      resolvedAssetId: null,
+      step: "done",
+      startedAt: "",
+    };
+    const result = resolver.resolve(state);
+    expect(result?.background).toBe("white");
+  });
 });
