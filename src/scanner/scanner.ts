@@ -1,4 +1,5 @@
 import { DriveClient, DriveFile } from "./drive-client";
+import { isSkippedPath } from "../catalog/brand-inference";
 
 export interface DriveFolder {
   id: string;
@@ -48,6 +49,9 @@ export async function scanDriveRoot(
     for (const entry of entries) {
       if (client.isFolder(entry)) {
         const folderPath = path ? `${path}/${entry.name}` : entry.name;
+        // Archived / superseded folders (封存, @封存, 舊版) hold no live assets —
+        // skip them entirely so scanning spends no AI or Drive calls on them.
+        if (isSkippedPath(folderPath)) continue;
         const folderSemantics = classifyFolder(entry.name);
         const effectiveSemantics = semantics !== "normal" ? semantics : folderSemantics;
         folders.push({ id: entry.id, name: entry.name, path: folderPath });

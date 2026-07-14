@@ -2,6 +2,7 @@ import { ScannedFile } from "../scanner/scanner";
 import { SvgDimensions, PngDimensions } from "../scanner/file-metadata";
 import { ASSET_INFERENCE_SCHEMA } from "./ai-schemas";
 import { AiProvider } from "../ai/provider";
+import { inferBrand } from "./brand-inference";
 
 export interface AiInferredMetadata {
   brand_id: string;
@@ -50,7 +51,7 @@ export class AiBuilder {
       return this.campaignResult(file);
     }
 
-    const brandInfo = this.inferBrandFromPath(file.parentPath);
+    const brandInfo = inferBrand(`${file.parentPath}/${file.name}`);
 
     const prompt = `Analyze this logo file and infer metadata.
 
@@ -85,24 +86,8 @@ If confidence >= 0.7, set review_status to "accepted".`;
     } as AiInferredMetadata;
   }
 
-  inferBrandFromPath(parentPath: string): { brand_id: string; display_name: string; aliases: string[] } {
-    const parts = parentPath.split("/");
-    const brandFolder = parts[0] || "unknown";
-
-    const id = brandFolder
-      .toLowerCase()
-      .replace(/[^a-z0-9一-鿿]+/g, "-")
-      .replace(/^-|-$/g, "");
-
-    return {
-      brand_id: id,
-      display_name: brandFolder,
-      aliases: [brandFolder],
-    };
-  }
-
   private archivedResult(file: ScannedFile): AiInferredMetadata {
-    const brand = this.inferBrandFromPath(file.parentPath);
+    const brand = inferBrand(`${file.parentPath}/${file.name}`);
     return {
       ...brand,
       asset_type: "logo",
@@ -120,7 +105,7 @@ If confidence >= 0.7, set review_status to "accepted".`;
   }
 
   private campaignResult(file: ScannedFile): AiInferredMetadata {
-    const brand = this.inferBrandFromPath(file.parentPath);
+    const brand = inferBrand(`${file.parentPath}/${file.name}`);
     return {
       ...brand,
       asset_type: "special",

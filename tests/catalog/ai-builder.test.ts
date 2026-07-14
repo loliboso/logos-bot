@@ -22,14 +22,8 @@ const mockFile = (overrides: Partial<ScannedFile> = {}): ScannedFile => ({
 });
 
 describe("AiBuilder", () => {
-  describe("inferBrandFromPath", () => {
-    it("extracts brand id from first path segment", () => {
-      const builder = new AiBuilder(stubProvider());
-      const result = builder.inferBrandFromPath("The News Lens 關鍵評論網/SVG");
-      expect(result.brand_id).toBe("the-news-lens-關鍵評論網");
-      expect(result.display_name).toBe("The News Lens 關鍵評論網");
-    });
-  });
+  // Brand inference moved to the shared pure function `inferBrand`
+  // (see src/catalog/brand-inference.test.ts). AiBuilder now delegates to it.
 
   describe("buildAssetMetadata for archived files", () => {
     it("returns ignored status without calling AI", async () => {
