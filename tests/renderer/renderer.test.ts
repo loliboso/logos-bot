@@ -91,4 +91,19 @@ describe("renderCustomSize", () => {
     expect(metadata.width).toBe(500);
     expect(metadata.height).toBe(500);
   });
+
+  it("fills the canvas white when background is white", async () => {
+    // 1x1 transparent PNG source, render to 4x4 with white bg → corner pixel opaque white
+    const src = await sharp({ create: { width: 1, height: 1, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    const out = await renderCustomSize({ source: src, sourceFormat: "png", width: 4, height: 4, background: "white" });
+    const { data } = await sharp(out.buffer).raw().toBuffer({ resolveWithObject: true });
+    expect([data[0], data[1], data[2], data[3]]).toEqual([255, 255, 255, 255]);
+  });
+
+  it("fills the canvas black when background is black", async () => {
+    const src = await sharp({ create: { width: 1, height: 1, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    const out = await renderCustomSize({ source: src, sourceFormat: "png", width: 4, height: 4, background: "black" });
+    const { data } = await sharp(out.buffer).raw().toBuffer({ resolveWithObject: true });
+    expect([data[0], data[1], data[2], data[3]]).toEqual([0, 0, 0, 255]);
+  });
 });

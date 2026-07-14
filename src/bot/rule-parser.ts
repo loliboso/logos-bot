@@ -22,6 +22,11 @@ const ASSET_TYPE: Rule[] = [
   { re: /\b(mark)\b|標記|符號/i, value: "mark" },
   { re: /\b(logo)\b|標誌/i, value: "logo" },
 ];
+const BACKGROUND: Rule[] = [
+  { re: /白底|white\s?bg|white background/i, value: "white" },
+  { re: /黑底|black\s?bg|black background/i, value: "black" },
+  { re: /透明|transparent/i, value: "transparent" },
+];
 
 function first(rules: Rule[], text: string): string | null {
   for (const r of rules) if (r.re.test(text)) return r.value;
@@ -37,5 +42,6 @@ export function parseFields(text: string) {
     asset_type: first(ASSET_TYPE, text),
     width: size ? parseInt(size[1], 10) : null,
     height: size ? parseInt(size[2], 10) : null,
+    background: first(BACKGROUND, text) as "transparent" | "white" | "black" | null,
   };
 }

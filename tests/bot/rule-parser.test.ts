@@ -20,7 +20,7 @@ describe("parseFields", () => {
   test("empty when no keywords", () => {
     expect(parseFields("給我 logo")).toEqual({
       format: null, color: null, language: null,
-      asset_type: "logo", width: null, height: null,
+      asset_type: "logo", width: null, height: null, background: null,
     });
   });
 
@@ -28,5 +28,15 @@ describe("parseFields", () => {
     const r = parseFields("1200×630");
     expect(r.width).toBe(1200);
     expect(r.height).toBe(630);
+  });
+
+  test("extracts background keywords", () => {
+    expect(parseFields("白底").background).toBe("white");
+    expect(parseFields("black bg").background).toBe("black");
+    expect(parseFields("透明背景").background).toBe("transparent");
+  });
+
+  test("background is null when no keyword", () => {
+    expect(parseFields("我要 logo").background).toBeNull();
   });
 });

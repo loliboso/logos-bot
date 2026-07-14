@@ -265,4 +265,79 @@ describe("ConversationManager", () => {
     const question = manager.getNextQuestion(state, [], sampleAssets);
     expect(question).toBeNull();
   });
+
+  test("asks size for a PNG-only brand (not just SVG)", () => {
+    const mgr = new ConversationManager();
+    const parsed = {
+      brand: "b", brandCandidates: ["b"], format: "png", color: "black",
+      language: null, asset_type: null, width: null, height: null,
+      background: null, raw_text: "b png",
+    };
+    const state = mgr.startConversation("u", "c", parsed as any);
+    state.resolvedBrandId = "b";
+    const assets = [
+      { format: "png", color: "black", can_resize: false } as any,
+    ];
+    const q = mgr.getNextQuestion(state, [], assets);
+    expect(q?.field).toBe("size");
+  });
+
+  function baseParsed(over: any = {}) {
+    return {
+      brand: "b", brandCandidates: ["b"], format: "png", color: "black",
+      language: null, asset_type: null, width: null, height: null,
+      background: null, raw_text: "x", ...over,
+    };
+  }
+
+  test("asks background after a custom size is set", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed({ width: 500, height: 500 }) as any);
+    state.resolvedBrandId = "b";
+    state.sizeResolved = true; // size already answered as custom
+    const assets = [{ format: "png", color: "black", can_resize: false } as any];
+    const q = mgr.getNextQuestion(state, [], assets);
+    expect(q?.field).toBe("background");
+    expect(q?.options?.map((o) => o.value)).toEqual(["transparent", "white", "black"]);
+  });
+
+  test("does NOT ask background for original size", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed() as any);
+    state.resolvedBrandId = "b";
+    state.sizeResolved = true; // chose original → width/height stay null
+    const assets = [{ format: "png", color: "black", can_resize: false } as any];
+    const q = mgr.getNextQuestion(state, [], assets);
+    expect(q).toBeNull();
+  });
+
+  test("applyAnswer sets background and marks it resolved", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed({ width: 500, height: 500 }) as any);
+    const next = mgr.applyAnswer(state, "background", "white");
+    expect(next.parsed.background).toBe("white");
+    expect(next.backgroundResolved).toBe(true);
+  });
+
+  test("asks background after user types custom dimensions", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed() as any);
+    state.resolvedBrandId = "b";
+
+    // User picks "custom" from the size menu
+    const afterCustomChoice = mgr.applyAnswer(state, "size", "custom");
+    expect(afterCustomChoice.sizeResolved).toBe(true);
+    expect(afterCustomChoice.awaitingCustomSize).toBe(true);
+
+    // User types dimensions
+    const afterInput = mgr.applyCustomSizeInput(afterCustomChoice, "800x600");
+    expect(afterInput?.parsed.width).toBe(800);
+    expect(afterInput?.parsed.height).toBe(600);
+    expect(afterInput?.awaitingCustomSize).toBe(false);
+
+    // Should now ask background
+    const assets = [{ format: "png", color: "black", can_resize: false } as any];
+    const q = mgr.getNextQuestion(afterInput!, [], assets);
+    expect(q?.field).toBe("background");
+  });
 });

@@ -6,6 +6,7 @@ export interface ResolvedAsset {
   needsCustomSize: boolean;
   requestedWidth: number | null;
   requestedHeight: number | null;
+  background: "transparent" | "white" | "black" | null;
 }
 
 export class AssetResolver {
@@ -27,11 +28,15 @@ export class AssetResolver {
     const best = this.selectBestSource(assets, wantsCustomSize);
     if (!best) return null;
 
+    // .ai cannot be rendered; treat it as direct download even if custom size was requested
+    const needsCustomSize = wantsCustomSize && best.format !== "ai";
+
     return {
       asset: best,
-      needsCustomSize: wantsCustomSize,
+      needsCustomSize,
       requestedWidth: state.parsed.width,
       requestedHeight: state.parsed.height,
+      background: state.parsed.background,
     };
   }
 
@@ -45,7 +50,10 @@ export class AssetResolver {
       // Fallback: largest PNG
       const pngs = assets.filter((a) => a.format === "png");
       pngs.sort((a, b) => (b.intrinsic_width || 0) - (a.intrinsic_width || 0));
-      return pngs[0] || null;
+      if (pngs.length > 0) return pngs[0];
+      // Final fallback: .ai (cannot be rendered, so delivery sends original file)
+      const ais = assets.filter((a) => a.format === "ai");
+      return ais[0] || null;
     }
 
     // For direct download, prefer exact format match

@@ -97,7 +97,9 @@ export async function handleResolvedAsset(
     sourceFormat,
     width,
     height,
-    background: asset.background === "transparent" ? "transparent" : asset.background,
+    background: result.background && result.background !== "transparent"
+      ? result.background
+      : "transparent",
   });
 
   const outName = `${asset.id}-${width}x${height}.png`;
@@ -108,7 +110,11 @@ export async function handleResolvedAsset(
     );
     return;
   }
-  if (asset.color === "white" && asset.background === "transparent") {
+  if (
+    asset.color === "white" &&
+    asset.background === "transparent" &&
+    (!result.background || result.background === "transparent")
+  ) {
     await ports.respond(buildWhiteLogoWarning());
   }
   await ports.respond(buildDeliveryMessage(asset, { width, height }));

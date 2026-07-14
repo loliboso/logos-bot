@@ -23,6 +23,8 @@ export interface ConversationState {
    * would re-ask the size question forever.
    */
   sizeResolved: boolean;
+  /** Whether the background question has been answered (custom-size only). */
+  backgroundResolved: boolean;
   step: ConversationStep;
   startedAt: string;
 }
@@ -43,6 +45,7 @@ export class ConversationManager {
       resolvedAssetId: null,
       awaitingCustomSize: false,
       sizeResolved: false,
+      backgroundResolved: false,
       step: "brand_select",
       startedAt: new Date().toISOString(),
     };
@@ -115,8 +118,12 @@ export class ConversationManager {
     // asset can be resized). sizeResolved distinguishes "chose original" (also
     // width/height null) from "not yet asked".
     if (!state.sizeResolved && state.parsed.width === null && state.parsed.height === null) {
-      const resizableCount = assets.filter((a) => a.can_resize).length;
-      if (resizableCount > 0) {
+      // Any raster/vector source can be rendered to a custom size (renderer
+      // handles both svg and png). .ai cannot be rendered, so it doesn't count.
+      const renderableCount = assets.filter(
+        (a) => a.format === "svg" || a.format === "png"
+      ).length;
+      if (renderableCount > 0) {
         return {
           text: "需要指定尺寸嗎？",
           field: "size",
@@ -128,6 +135,21 @@ export class ConversationManager {
           ],
         };
       }
+    }
+
+    // Background is only meaningful once a custom size is chosen — the render
+    // canvas is what gets a fill. Original size returns the source untouched.
+    const hasCustomSize = state.parsed.width !== null && state.parsed.height !== null;
+    if (hasCustomSize && !state.backgroundResolved) {
+      return {
+        text: "要什麼底色？",
+        field: "background",
+        options: [
+          { label: "透明", value: "transparent" },
+          { label: "白底", value: "white" },
+          { label: "黑底", value: "black" },
+        ],
+      };
     }
 
     return null;
@@ -159,6 +181,10 @@ export class ConversationManager {
           next.parsed.width = w;
           next.parsed.height = h;
         }
+        break;
+      case "background":
+        next.parsed.background = value as "transparent" | "white" | "black";
+        next.backgroundResolved = true;
         break;
       default:
         (next.parsed as any)[field] = value;
