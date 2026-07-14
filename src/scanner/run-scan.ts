@@ -6,6 +6,7 @@ import { AiBuilder } from "../catalog/ai-builder";
 import { CatalogRepo } from "../catalog/catalog-repo";
 import { OverrideRepo } from "../catalog/override-repo";
 import { exportReviewReports } from "../catalog/review-export";
+import { generateCoverageReport } from "../catalog/coverage-report";
 import { AiProvider } from "../ai/provider";
 
 export interface ScanOptions {
@@ -102,6 +103,7 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
 
   repo.completeScannerRun(runId, scanResult.files.length);
   exportReviewReports(db, outputDir);
+  generateCoverageReport(db, outputDir);
 
   return { runId, totalFiles: scanResult.files.length, accepted, needsReview, ignored };
 }

@@ -27,11 +27,13 @@ export function registerCommands(
       return;
     }
 
-    const parsed = await parser.parseUserRequest(text);
+    const parsed = parser.parseUserRequest(text);
     const state = conversationManager.startConversation(command.user_id, command.channel_id, parsed);
 
-    const brands = parsed.brand ? repo.findBrandByAlias(parsed.brand) : [];
-    if (brands.length === 1) state.resolvedBrandId = brands[0].id;
+    const brands = parsed.brandCandidates
+      .map((id) => repo.getBrandById(id))
+      .filter((b): b is NonNullable<typeof b> => b !== null);
+    if (parsed.brand) state.resolvedBrandId = parsed.brand;
 
     const assets = state.resolvedBrandId ? repo.getActiveAssets(state.resolvedBrandId) : [];
     const question = conversationManager.getNextQuestion(state, brands, assets);
@@ -81,8 +83,10 @@ export function registerCommands(
 
     const updated = conversationManager.applyAnswer(state, field, value);
     const brands: BrandRecord[] = updated.resolvedBrandId
-      ? [{ id: updated.resolvedBrandId } as BrandRecord]
-      : repo.findBrandByAlias(updated.parsed.brand || "");
+      ? [repo.getBrandById(updated.resolvedBrandId)].filter((b): b is NonNullable<typeof b> => b !== null)
+      : updated.parsed.brandCandidates
+          .map((id) => repo.getBrandById(id))
+          .filter((b): b is NonNullable<typeof b> => b !== null);
     const assets = updated.resolvedBrandId ? repo.getActiveAssets(updated.resolvedBrandId) : [];
     const question = conversationManager.getNextQuestion(updated, brands, assets);
 
