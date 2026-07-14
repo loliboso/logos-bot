@@ -105,6 +105,12 @@ export function registerDmHandler(
       const assets = state.resolvedBrandId ? repo.getActiveAssets(state.resolvedBrandId) : [];
       const question = conversationManager.getNextQuestion(state, brands, assets);
 
+      if (!question && !state.resolvedBrandId) {
+        conversations.set(userId, state);
+        await say("你要哪個品牌的 Logo？請直接輸入品牌名稱（例如 INSIDE、關鍵評論網、TNL Mediagene）。");
+        return;
+      }
+
       if (!question && conversationManager.isComplete(state)) {
         const result = resolver.resolve(state);
         if (result) {
