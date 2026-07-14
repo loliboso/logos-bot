@@ -318,4 +318,26 @@ describe("ConversationManager", () => {
     expect(next.parsed.background).toBe("white");
     expect(next.backgroundResolved).toBe(true);
   });
+
+  test("asks background after user types custom dimensions", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed() as any);
+    state.resolvedBrandId = "b";
+
+    // User picks "custom" from the size menu
+    const afterCustomChoice = mgr.applyAnswer(state, "size", "custom");
+    expect(afterCustomChoice.sizeResolved).toBe(true);
+    expect(afterCustomChoice.awaitingCustomSize).toBe(true);
+
+    // User types dimensions
+    const afterInput = mgr.applyCustomSizeInput(afterCustomChoice, "800x600");
+    expect(afterInput?.parsed.width).toBe(800);
+    expect(afterInput?.parsed.height).toBe(600);
+    expect(afterInput?.awaitingCustomSize).toBe(false);
+
+    // Should now ask background
+    const assets = [{ format: "png", color: "black", can_resize: false } as any];
+    const q = mgr.getNextQuestion(afterInput!, [], assets);
+    expect(q?.field).toBe("background");
+  });
 });
