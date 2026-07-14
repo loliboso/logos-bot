@@ -115,8 +115,12 @@ export class ConversationManager {
     // asset can be resized). sizeResolved distinguishes "chose original" (also
     // width/height null) from "not yet asked".
     if (!state.sizeResolved && state.parsed.width === null && state.parsed.height === null) {
-      const resizableCount = assets.filter((a) => a.can_resize).length;
-      if (resizableCount > 0) {
+      // Any raster/vector source can be rendered to a custom size (renderer
+      // handles both svg and png). .ai cannot be rendered, so it doesn't count.
+      const renderableCount = assets.filter(
+        (a) => a.format === "svg" || a.format === "png"
+      ).length;
+      if (renderableCount > 0) {
         return {
           text: "需要指定尺寸嗎？",
           field: "size",

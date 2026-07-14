@@ -265,4 +265,20 @@ describe("ConversationManager", () => {
     const question = manager.getNextQuestion(state, [], sampleAssets);
     expect(question).toBeNull();
   });
+
+  test("asks size for a PNG-only brand (not just SVG)", () => {
+    const mgr = new ConversationManager();
+    const parsed = {
+      brand: "b", brandCandidates: ["b"], format: "png", color: "black",
+      language: null, asset_type: null, width: null, height: null,
+      background: null, raw_text: "b png",
+    };
+    const state = mgr.startConversation("u", "c", parsed as any);
+    state.resolvedBrandId = "b";
+    const assets = [
+      { format: "png", color: "black", can_resize: false } as any,
+    ];
+    const q = mgr.getNextQuestion(state, [], assets);
+    expect(q?.field).toBe("size");
+  });
 });
