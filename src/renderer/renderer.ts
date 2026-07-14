@@ -68,7 +68,9 @@ export async function renderCustomSize(request: RenderRequest): Promise<RenderRe
       channels: 4,
       background: isTransparent
         ? { r: 0, g: 0, b: 0, alpha: 0 }
-        : { r: 128, g: 128, b: 128, alpha: 1 },
+        : background === "black"
+        ? { r: 0, g: 0, b: 0, alpha: 1 }
+        : { r: 255, g: 255, b: 255, alpha: 1 },
     },
   });
 
