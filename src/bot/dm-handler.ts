@@ -90,15 +90,17 @@ export function registerDmHandler(
       return;
     }
 
-    // A fresh request: the AI parse alone is a few seconds, and delivery adds a
-    // Drive download + upload. Post the notice before any of that work starts.
+    // A fresh request: delivery adds a Drive download + upload. Post the notice
+    // before any of that work starts.
     const clearNotice = await postProcessing(client as any, channelId);
     try {
-      const parsed = await parser.parseUserRequest(text);
+      const parsed = parser.parseUserRequest(text);
       const state = conversationManager.startConversation(userId, channelId, parsed);
 
-      const brands = parsed.brand ? repo.findBrandByAlias(parsed.brand) : [];
-      if (brands.length === 1) state.resolvedBrandId = brands[0].id;
+      const brands = parsed.brandCandidates
+        .map((id) => repo.getBrandById(id))
+        .filter((b): b is NonNullable<typeof b> => b !== null);
+      if (parsed.brand) state.resolvedBrandId = parsed.brand;
 
       const assets = state.resolvedBrandId ? repo.getActiveAssets(state.resolvedBrandId) : [];
       const question = conversationManager.getNextQuestion(state, brands, assets);

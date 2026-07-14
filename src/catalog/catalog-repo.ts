@@ -106,6 +106,13 @@ export class CatalogRepo {
     return row ? this.toBrandRecord(row) : null;
   }
 
+  getAllBrands(): BrandRecord[] {
+    const rows = this.db
+      .prepare(`SELECT * FROM brands WHERE status = 'active'`)
+      .all() as any[];
+    return rows.map(this.toBrandRecord);
+  }
+
   getActiveAssets(brandId: string): AssetRecord[] {
     const rows = this.db
       .prepare(

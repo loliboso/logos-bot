@@ -68,12 +68,24 @@ describe("Integration: full request flow", () => {
   });
 
   it("full flow: '我要 TNL 藍色 SVG' with brand disambiguation", () => {
-    // Simulate parsed request
-    const parsed = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "我要 TNL 藍色 SVG" };
+    // Simulate parsed request (rule-first parser returns brandCandidates)
+    const parsed = {
+      brand: null,
+      brandCandidates: ["the-news-lens", "tnl-mediagene"],
+      format: "svg",
+      color: "blue",
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "我要 TNL 藍色 SVG",
+    };
     const state = conversationManager.startConversation("user1", "ch1", parsed);
 
-    // Brand search returns multiple matches
-    const brands = repo.findBrandByAlias("TNL");
+    // Resolve brandCandidates to BrandRecord[]
+    const brands = parsed.brandCandidates
+      .map((id) => repo.getBrandById(id))
+      .filter((b): b is NonNullable<typeof b> => b !== null);
     expect(brands.length).toBe(2);
 
     // Bot asks disambiguation
@@ -100,10 +112,22 @@ describe("Integration: full request flow", () => {
   });
 
   it("full flow: custom size request '關鍵評論網 500x500'", () => {
-    const parsed = { brand: "關鍵評論網", format: null, color: "blue", language: null, asset_type: null, width: 500, height: 500, raw_text: "關鍵評論網 藍色 500x500" };
+    const parsed = {
+      brand: "the-news-lens",
+      brandCandidates: ["the-news-lens"],
+      format: null,
+      color: "blue",
+      language: null,
+      asset_type: null,
+      width: 500,
+      height: 500,
+      raw_text: "關鍵評論網 藍色 500x500",
+    };
     const state = conversationManager.startConversation("user1", "ch1", parsed);
 
-    const brands = repo.findBrandByAlias("關鍵評論網");
+    const brands = parsed.brandCandidates
+      .map((id) => repo.getBrandById(id))
+      .filter((b): b is NonNullable<typeof b> => b !== null);
     expect(brands.length).toBe(1);
     state.resolvedBrandId = brands[0].id;
 

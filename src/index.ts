@@ -4,13 +4,14 @@ import { createApp } from "./bot/app";
 import { registerCommands } from "./bot/commands";
 import { registerDmHandler } from "./bot/dm-handler";
 import { RequestParser } from "./bot/request-parser";
+import { BrandMatcher } from "./bot/brand-matcher";
 import { ConversationManager } from "./bot/conversation";
 import { ConversationStore } from "./bot/conversation-store";
 import { AssetResolver } from "./bot/asset-resolver";
 import { CatalogRepo } from "./catalog/catalog-repo";
 import { OutputCache } from "./renderer/cache";
 import { DriveClient } from "./scanner/drive-client";
-import { createAiProvider } from "./ai/factory";
+import { loadBrandConfig } from "./config/brands-config";
 import { mkdirSync } from "fs";
 import { dirname } from "path";
 
@@ -21,8 +22,10 @@ async function main(): Promise<void> {
 
   const repo = new CatalogRepo(db);
   const cache = new OutputCache(db);
-  const aiProvider = createAiProvider();
-  const parser = new RequestParser(aiProvider);
+  const brandConfig = loadBrandConfig();
+  const allBrands = repo.getAllBrands();
+  const matcher = new BrandMatcher(allBrands, brandConfig);
+  const parser = new RequestParser(matcher);
   const conversationManager = new ConversationManager();
   const conversations = new ConversationStore();
   const resolver = new AssetResolver(repo);

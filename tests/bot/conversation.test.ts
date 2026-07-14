@@ -18,7 +18,17 @@ const sampleAssets: AssetRecord[] = [
 
 describe("ConversationManager", () => {
   it("asks for brand disambiguation when multiple brands match", () => {
-    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: null, language: null, asset_type: null, width: null, height: null, raw_text: "我要 TNL logo" };
+    const parsed: ParsedRequest = {
+      brand: null,
+      brandCandidates: ["the-news-lens", "tnl-mediagene"],
+      format: "svg",
+      color: null,
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "我要 TNL logo",
+    };
     const state = manager.startConversation("user1", "ch1", parsed);
     const question = manager.getNextQuestion(state, twoBrands, sampleAssets);
     expect(question?.field).toBe("brand_id");
@@ -27,7 +37,17 @@ describe("ConversationManager", () => {
   });
 
   it("auto-resolves single brand match without asking", () => {
-    const parsed: ParsedRequest = { brand: "關鍵評論網", format: "svg", color: null, language: null, asset_type: null, width: null, height: null, raw_text: "我要關鍵評論網 SVG" };
+    const parsed: ParsedRequest = {
+      brand: "the-news-lens",
+      brandCandidates: ["the-news-lens"],
+      format: "svg",
+      color: null,
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "我要關鍵評論網 SVG",
+    };
     const state = manager.startConversation("user1", "ch1", parsed);
     const question = manager.getNextQuestion(state, [twoBrands[0]], sampleAssets);
     // Brand auto-resolved, next question is color
@@ -35,7 +55,17 @@ describe("ConversationManager", () => {
   });
 
   it("asks for color when multiple colors available", () => {
-    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: null, language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const parsed: ParsedRequest = {
+      brand: "the-news-lens",
+      brandCandidates: ["the-news-lens"],
+      format: "svg",
+      color: null,
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "test",
+    };
     const state = manager.startConversation("user1", "ch1", parsed);
     state.resolvedBrandId = "the-news-lens";
     const question = manager.getNextQuestion(state, [twoBrands[0]], sampleAssets);
@@ -44,7 +74,17 @@ describe("ConversationManager", () => {
   });
 
   it("skips format question when already specified", () => {
-    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const parsed: ParsedRequest = {
+      brand: "the-news-lens",
+      brandCandidates: ["the-news-lens"],
+      format: "svg",
+      color: "blue",
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "test",
+    };
     const state = manager.startConversation("user1", "ch1", parsed);
     state.resolvedBrandId = "the-news-lens";
     const question = manager.getNextQuestion(state, [twoBrands[0]], sampleAssets);
@@ -53,7 +93,17 @@ describe("ConversationManager", () => {
   });
 
   it("offers only concrete formats when a format is required", () => {
-    const parsed: ParsedRequest = { brand: "TNL", format: null, color: null, language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const parsed: ParsedRequest = {
+      brand: "the-news-lens",
+      brandCandidates: ["the-news-lens"],
+      format: null,
+      color: null,
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "test",
+    };
     const state = manager.startConversation("user1", "ch1", parsed);
     state.resolvedBrandId = "the-news-lens";
 
@@ -64,7 +114,17 @@ describe("ConversationManager", () => {
   });
 
   it("asks for dimensions after the user chooses a custom size", () => {
-    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const parsed: ParsedRequest = {
+      brand: "the-news-lens",
+      brandCandidates: ["the-news-lens"],
+      format: "svg",
+      color: "blue",
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "test",
+    };
     const state = manager.startConversation("user1", "ch1", parsed);
     state.resolvedBrandId = "the-news-lens";
 
@@ -76,7 +136,17 @@ describe("ConversationManager", () => {
   });
 
   it("does not re-ask size after the user chooses the original size", () => {
-    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const parsed: ParsedRequest = {
+      brand: "the-news-lens",
+      brandCandidates: ["the-news-lens"],
+      format: "svg",
+      color: "blue",
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "test",
+    };
     const state = manager.startConversation("user1", "ch1", parsed);
     state.resolvedBrandId = "the-news-lens";
 
@@ -91,7 +161,17 @@ describe("ConversationManager", () => {
   });
 
   it("accepts a custom dimension reply", () => {
-    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const parsed: ParsedRequest = {
+      brand: "the-news-lens",
+      brandCandidates: ["the-news-lens"],
+      format: "svg",
+      color: "blue",
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "test",
+    };
     const state = manager.startConversation("user1", "ch1", parsed);
 
     const updated = manager.applyCustomSizeInput(state, "800 x 600");
@@ -101,22 +181,88 @@ describe("ConversationManager", () => {
   });
 
   it("applyAnswer updates state correctly", () => {
-    const parsed: ParsedRequest = { brand: "TNL", format: null, color: null, language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const parsed: ParsedRequest = {
+      brand: null,
+      brandCandidates: [],
+      format: null,
+      color: null,
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "test",
+    };
     const state = manager.startConversation("user1", "ch1", parsed);
     const updated = manager.applyAnswer(state, "brand_id", "the-news-lens");
     expect(updated.resolvedBrandId).toBe("the-news-lens");
   });
 
   it("isComplete when brand and format are resolved", () => {
-    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const parsed: ParsedRequest = {
+      brand: "the-news-lens",
+      brandCandidates: ["the-news-lens"],
+      format: "svg",
+      color: "blue",
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "test",
+    };
     const state = manager.startConversation("user1", "ch1", parsed);
     state.resolvedBrandId = "the-news-lens";
     expect(manager.isComplete(state)).toBe(true);
   });
 
   it("not complete without brand resolution", () => {
-    const parsed: ParsedRequest = { brand: "TNL", format: "svg", color: "blue", language: null, asset_type: null, width: null, height: null, raw_text: "test" };
+    const parsed: ParsedRequest = {
+      brand: null,
+      brandCandidates: ["the-news-lens"],
+      format: "svg",
+      color: "blue",
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "test",
+    };
     const state = manager.startConversation("user1", "ch1", parsed);
     expect(manager.isComplete(state)).toBe(false);
+  });
+
+  it("uses brandCandidates for disambiguation (rule-first parser)", () => {
+    const parsed: ParsedRequest = {
+      brand: null,
+      brandCandidates: ["the-news-lens", "tnl-mediagene"],
+      format: null,
+      color: null,
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "tnl",
+    };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    const question = manager.getNextQuestion(state, twoBrands, sampleAssets);
+    expect(question?.field).toBe("brand_id");
+    expect(question?.options?.length).toBe(2);
+    expect(question?.text).toContain("多個");
+  });
+
+  it("returns null when brandCandidates is empty (rule-first parser)", () => {
+    const parsed: ParsedRequest = {
+      brand: null,
+      brandCandidates: [],
+      format: null,
+      color: null,
+      language: null,
+      asset_type: null,
+      width: null,
+      height: null,
+      raw_text: "something",
+    };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    const question = manager.getNextQuestion(state, [], sampleAssets);
+    expect(question).toBeNull();
   });
 });

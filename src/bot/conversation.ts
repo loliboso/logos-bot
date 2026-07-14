@@ -60,21 +60,22 @@ export class ConversationManager {
       };
     }
 
-    if (!state.parsed.brand && !state.resolvedBrandId) {
+    const candidates = state.parsed.brandCandidates ?? [];
+    if (candidates.length === 0 && !state.resolvedBrandId) {
       return null; // Cannot proceed without any brand hint
     }
 
     // Brand disambiguation
     if (!state.resolvedBrandId) {
-      if (brands.length > 1) {
+      if (candidates.length > 1) {
         return {
           text: "找到多個符合的品牌，請選擇：",
           field: "brand_id",
           options: brands.map((b) => ({ label: b.display_name, value: b.id })),
         };
       }
-      if (brands.length === 1) {
-        state.resolvedBrandId = brands[0].id;
+      if (candidates.length === 1) {
+        state.resolvedBrandId = candidates[0];
       }
     }
 
