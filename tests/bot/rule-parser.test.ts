@@ -20,8 +20,21 @@ describe("parseFields", () => {
   test("empty when no keywords", () => {
     expect(parseFields("給我 logo")).toEqual({
       format: null, color: null, language: null,
-      asset_type: "logo", width: null, height: null, background: null,
+      asset_type: "logo", layout: null, width: null, height: null, background: null,
     });
+  });
+
+  test("extracts layout (form) keywords", () => {
+    expect(parseFields("我要橫式的").layout).toBe("horizontal");
+    expect(parseFields("直式 logo").layout).toBe("vertical");
+    expect(parseFields("正方形").layout).toBe("square");
+    expect(parseFields("square png").layout).toBe("square");
+  });
+
+  test("layout is null when no shape word (mark alone stays asset_type only)", () => {
+    const r = parseFields("我要 mark");
+    expect(r.asset_type).toBe("mark");
+    expect(r.layout).toBeNull();
   });
 
   test("full-width × size separator", () => {

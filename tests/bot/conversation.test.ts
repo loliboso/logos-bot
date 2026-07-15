@@ -319,6 +319,88 @@ describe("ConversationManager", () => {
     expect(next.backgroundResolved).toBe(true);
   });
 
+  // --- Two-axis form/richness questions (asset_type / language / layout) ---
+
+  // Brand with a mix of types, languages and layouts so each axis has >1 value.
+  const multiFormAssets: AssetRecord[] = [
+    { ...sampleAssets[0], id: "m1", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" },
+    { ...sampleAssets[0], id: "m2", asset_type: "logo", language: "en", layout: "vertical", color: "blue" },
+    { ...sampleAssets[0], id: "m3", asset_type: "mark", language: null, layout: "square", color: "black" },
+  ];
+
+  function formParsed(over: any = {}) {
+    return {
+      brand: "b", brandCandidates: ["b"], format: "svg", color: null,
+      language: null, asset_type: null, layout: null, width: null, height: null,
+      background: null, raw_text: "x", ...over,
+    } as ParsedRequest;
+  }
+
+  test("asks type (asset_type) when brand has both logo and mark", () => {
+    const state = manager.startConversation("u", "c", formParsed());
+    state.resolvedBrandId = "b";
+    const q = manager.getNextQuestion(state, [twoBrands[0]], multiFormAssets);
+    expect(q?.field).toBe("asset_type");
+    expect(q?.options?.map((o) => o.value).sort()).toEqual(["logo", "mark"]);
+  });
+
+  test("asks language after type is chosen, narrowed to that type", () => {
+    const state = manager.startConversation("u", "c", formParsed({ asset_type: "logo" }));
+    state.resolvedBrandId = "b";
+    const q = manager.getNextQuestion(state, [twoBrands[0]], multiFormAssets);
+    // logo assets are zh + en; the null-language mark was filtered out by type
+    expect(q?.field).toBe("language");
+    expect(q?.options?.map((o) => o.value).sort()).toEqual(["en", "zh"]);
+  });
+
+  test("asks layout (form) when only the layout axis varies", () => {
+    // Same type, same language, same color — only the shape differs.
+    const assets: AssetRecord[] = [
+      { ...sampleAssets[0], id: "l1", asset_type: "logo", language: "en", layout: "horizontal", color: "blue" },
+      { ...sampleAssets[0], id: "l2", asset_type: "logo", language: "en", layout: "vertical", color: "blue" },
+    ];
+    const state = manager.startConversation("u", "c", formParsed({ color: "blue" }));
+    state.resolvedBrandId = "b";
+    const q = manager.getNextQuestion(state, [twoBrands[0]], assets);
+    expect(q?.field).toBe("layout");
+    expect(q?.options?.map((o) => o.value).sort()).toEqual(["horizontal", "vertical"]);
+  });
+
+  test("does not ask language when only one non-null language coexists with null", () => {
+    // All logos, all horizontal, all blue → only the language axis could vary.
+    // Languages are [en, null]; non-null distinct = [en] (just 1) → must skip,
+    // otherwise auto-picking en would drop the language-neutral asset.
+    const assets: AssetRecord[] = [
+      { ...sampleAssets[0], id: "x1", asset_type: "logo", language: "en", layout: "horizontal", color: "blue" },
+      { ...sampleAssets[0], id: "x2", asset_type: "logo", language: null, layout: "horizontal", color: "blue" },
+    ];
+    const state = manager.startConversation("u", "c", formParsed({ color: "blue" }));
+    state.resolvedBrandId = "b";
+    const q = manager.getNextQuestion(state, [twoBrands[0]], assets);
+    // language is skipped and never auto-set → flow lands on size
+    expect(q?.field).toBe("size");
+    expect(state.parsed.language).toBeNull();
+  });
+
+  test("auto-skips all axes when the brand has only one uniform variant", () => {
+    const assets: AssetRecord[] = [
+      { ...sampleAssets[0], id: "u1", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" },
+    ];
+    const state = manager.startConversation("u", "c", formParsed({ color: "blue" }));
+    state.resolvedBrandId = "b";
+    const q = manager.getNextQuestion(state, [twoBrands[0]], assets);
+    // nothing to disambiguate → straight to size
+    expect(q?.field).toBe("size");
+  });
+
+  test("size options are original / custom only (no hardcoded square preset)", () => {
+    const state = manager.startConversation("u", "c", formParsed({ asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" }));
+    state.resolvedBrandId = "b";
+    const q = manager.getNextQuestion(state, [twoBrands[0]], multiFormAssets);
+    expect(q?.field).toBe("size");
+    expect(q?.options?.map((o) => o.value)).toEqual(["original", "custom"]);
+  });
+
   test("asks background after user types custom dimensions", () => {
     const mgr = new ConversationManager();
     const state = mgr.startConversation("u", "c", baseParsed() as any);

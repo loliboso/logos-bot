@@ -50,6 +50,7 @@ export interface AssetQuery {
   color?: string;
   language?: string;
   asset_type?: string;
+  layout?: string;
   variant?: string;
 }
 
@@ -143,6 +144,7 @@ export class CatalogRepo {
     if (query.color) { conditions.push("color = @color"); params.color = query.color; }
     if (query.language) { conditions.push("language = @language"); params.language = query.language; }
     if (query.asset_type) { conditions.push("asset_type = @asset_type"); params.asset_type = query.asset_type; }
+    if (query.layout) { conditions.push("layout = @layout"); params.layout = query.layout; }
     if (query.variant) { conditions.push("variant = @variant"); params.variant = query.variant; }
 
     const rows = this.db

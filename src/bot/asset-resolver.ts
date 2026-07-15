@@ -20,6 +20,7 @@ export class AssetResolver {
     if (state.parsed.color) query.color = state.parsed.color;
     if (state.parsed.language) query.language = state.parsed.language;
     if (state.parsed.asset_type) query.asset_type = state.parsed.asset_type;
+    if (state.parsed.layout) query.layout = state.parsed.layout;
 
     const assets = this.repo.findAssets(query);
     if (assets.length === 0) return null;

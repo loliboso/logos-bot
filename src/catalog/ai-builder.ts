@@ -37,6 +37,36 @@ Naming inference rules for logo files:
 When review_reason is needed, write it in Taiwan Mandarin (繁體中文).
 `;
 
+/**
+ * Deterministic filename rules that override the AI's shape guess. A file named
+ * mark/square/favicon (or 正方形) is a square asset, and mark/favicon files are
+ * brand marks — these signals are reliable enough that we don't leave them to
+ * the model. Mutates and returns the metadata, and records why in inferred_from.
+ */
+export function applyFilenameShapeRules(
+  fileName: string,
+  metadata: AiInferredMetadata
+): AiInferredMetadata {
+  const n = fileName.toLowerCase();
+  const isSquare =
+    ["mark", "square", "favicon"].some((k) => n.includes(k)) || fileName.includes("正方形");
+  const isMark = n.includes("mark") || n.includes("favicon");
+
+  let applied = false;
+  if (isSquare && metadata.layout !== "square") {
+    metadata.layout = "square";
+    applied = true;
+  }
+  if (isMark && metadata.asset_type !== "mark") {
+    metadata.asset_type = "mark";
+    applied = true;
+  }
+  if (applied && !metadata.inferred_from.includes("filename_shape_rule")) {
+    metadata.inferred_from.push("filename_shape_rule");
+  }
+  return metadata;
+}
+
 export class AiBuilder {
   constructor(private provider: AiProvider) {}
 
@@ -78,12 +108,14 @@ If confidence >= 0.7, set review_status to "accepted".`;
       throw new Error("AI did not return structured metadata");
     }
 
-    return {
+    const metadata = {
       brand_id: brandInfo.brand_id,
       display_name: brandInfo.display_name,
       aliases: brandInfo.aliases,
       ...(inferred as Record<string, any>),
     } as AiInferredMetadata;
+
+    return applyFilenameShapeRules(file.name, metadata);
   }
 
   private archivedResult(file: ScannedFile): AiInferredMetadata {

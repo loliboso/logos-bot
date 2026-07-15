@@ -67,7 +67,7 @@ export function registerCommands(
   });
 
   // Button action handler
-  app.action(/^select_(.+)_(.+)$/, async ({ action, ack, respond, body, client }) => {
+  app.action(/^select_/, async ({ action, ack, respond, body, client }) => {
     await ack();
     const userId = body.user.id;
     const state = conversations.get(userId);
@@ -76,10 +76,15 @@ export function registerCommands(
       return;
     }
 
+    // action_id is `select_${field}_${value}`. Field names contain underscores
+    // (e.g. asset_type, brand_id) and so do some values, so a regex split is
+    // ambiguous. The button's own `value` is authoritative — strip it (plus the
+    // "select_" prefix and the joining "_") to recover the field exactly.
     const actionId = (action as any).action_id as string;
-    const match = actionId.match(/^select_(.+?)_(.+)$/);
-    if (!match) return;
-    const [, field, value] = match;
+    const value = (action as any).value as string;
+    if (typeof value !== "string" || !actionId.startsWith("select_")) return;
+    const field = actionId.slice("select_".length, actionId.length - value.length - 1);
+    if (!field) return;
 
     const updated = conversationManager.applyAnswer(state, field, value);
     const brands: BrandRecord[] = updated.resolvedBrandId
