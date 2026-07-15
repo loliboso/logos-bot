@@ -1,5 +1,6 @@
 import { ParsedRequest } from "./request-parser";
 import { BrandRecord, AssetRecord } from "../catalog/catalog-repo";
+import { colorLabel } from "./labels";
 
 export type ConversationStep =
   | "brand_select"
@@ -22,6 +23,8 @@ export interface ConversationState {
    * would re-ask the size question forever.
    */
   sizeResolved: boolean;
+  /** Whether the background question has been answered (custom-size only). */
+  backgroundResolved: boolean;
   step: ConversationStep;
   startedAt: string;
 }
@@ -42,6 +45,7 @@ export class ConversationManager {
       resolvedAssetId: null,
       awaitingCustomSize: false,
       sizeResolved: false,
+      backgroundResolved: false,
       step: "brand_select",
       startedAt: new Date().toISOString(),
     };
@@ -59,21 +63,22 @@ export class ConversationManager {
       };
     }
 
-    if (!state.parsed.brand && !state.resolvedBrandId) {
+    const candidates = state.parsed.brandCandidates ?? [];
+    if (candidates.length === 0 && !state.resolvedBrandId) {
       return null; // Cannot proceed without any brand hint
     }
 
     // Brand disambiguation
     if (!state.resolvedBrandId) {
-      if (brands.length > 1) {
+      if (candidates.length > 1) {
         return {
           text: "找到多個符合的品牌，請選擇：",
           field: "brand_id",
           options: brands.map((b) => ({ label: b.display_name, value: b.id })),
         };
       }
-      if (brands.length === 1) {
-        state.resolvedBrandId = brands[0].id;
+      if (candidates.length === 1) {
+        state.resolvedBrandId = candidates[0];
       }
     }
 
@@ -98,16 +103,10 @@ export class ConversationManager {
     if (!state.parsed.color) {
       const colors = [...new Set(assets.filter((a) => a.color).map((a) => a.color!))];
       if (colors.length > 1) {
-        const colorLabels: Record<string, string> = {
-          blue: "主色（藍）",
-          black: "黑色",
-          white: "白色",
-          primary: "主色",
-        };
         return {
           text: "要哪個版本？",
           field: "color",
-          options: colors.map((c) => ({ label: colorLabels[c] || c, value: c })),
+          options: colors.map((c) => ({ label: colorLabel(c), value: c })),
         };
       }
       if (colors.length === 1) {
@@ -119,8 +118,12 @@ export class ConversationManager {
     // asset can be resized). sizeResolved distinguishes "chose original" (also
     // width/height null) from "not yet asked".
     if (!state.sizeResolved && state.parsed.width === null && state.parsed.height === null) {
-      const resizableCount = assets.filter((a) => a.can_resize).length;
-      if (resizableCount > 0) {
+      // Any raster/vector source can be rendered to a custom size (renderer
+      // handles both svg and png). .ai cannot be rendered, so it doesn't count.
+      const renderableCount = assets.filter(
+        (a) => a.format === "svg" || a.format === "png"
+      ).length;
+      if (renderableCount > 0) {
         return {
           text: "需要指定尺寸嗎？",
           field: "size",
@@ -132,6 +135,21 @@ export class ConversationManager {
           ],
         };
       }
+    }
+
+    // Background is only meaningful once a custom size is chosen — the render
+    // canvas is what gets a fill. Original size returns the source untouched.
+    const hasCustomSize = state.parsed.width !== null && state.parsed.height !== null;
+    if (hasCustomSize && !state.backgroundResolved) {
+      return {
+        text: "要什麼底色？",
+        field: "background",
+        options: [
+          { label: "透明", value: "transparent" },
+          { label: "白底", value: "white" },
+          { label: "黑底", value: "black" },
+        ],
+      };
     }
 
     return null;
@@ -163,6 +181,10 @@ export class ConversationManager {
           next.parsed.width = w;
           next.parsed.height = h;
         }
+        break;
+      case "background":
+        next.parsed.background = value as "transparent" | "white" | "black";
+        next.backgroundResolved = true;
         break;
       default:
         (next.parsed as any)[field] = value;

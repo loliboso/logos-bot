@@ -4,10 +4,11 @@
   "description": "Slack bot for requesting brand logo assets via natural language",
   "type": "commonjs",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"require('fs').copyFileSync('src/db/schema.sql','dist/db/schema.sql')\"",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "scan": "tsx src/scan.ts",
+    "scan:full": "tsx src/scan.ts --full",
     "test": "vitest run",
     "test:watch": "vitest"
   },

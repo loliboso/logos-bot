@@ -154,7 +154,7 @@ The Slack bot handles user interaction. It queries the catalog rather than direc
 Supported entry points:
 
 - Direct message to the bot
-- Slash command or Slack shortcut, such as `/logo`
+- Slash command or Slack shortcut, such as `/logos`
 - Guided follow-up after ambiguous natural language requests
 
 The bot should use progressive guided conversation:

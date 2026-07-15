@@ -39,15 +39,14 @@ function makePorts(overrides: Partial<DeliveryPorts> = {}): DeliveryPorts {
   return {
     respond: vi.fn(async () => {}),
     downloadSource: vi.fn(async () => SVG_FIXTURE),
-    getLink: vi.fn(async () => "https://drive.google.com/file/d/file-1/view"),
-    uploadPng: vi.fn(async () => {}),
+    uploadFile: vi.fn(async () => true),
     maxOutputSize: 4000,
     ...overrides,
   };
 }
 
 describe("handleResolvedAsset — direct download (no custom size)", () => {
-  it("responds with the Drive link and does not upload", async () => {
+  it("uploads the original file bytes instead of returning a link", async () => {
     const ports = makePorts();
     const result: ResolvedAsset = {
       asset: makeAsset(),
@@ -58,11 +57,31 @@ describe("handleResolvedAsset — direct download (no custom size)", () => {
 
     await handleResolvedAsset(result, ports);
 
-    expect(ports.getLink).toHaveBeenCalledWith("file-1");
-    expect(ports.uploadPng).not.toHaveBeenCalled();
-    // The Drive link should appear in one of the responses.
+    // The original bytes are downloaded and uploaded to Slack, preserving the
+    // source filename so employees without Drive access still get the file.
+    expect(ports.downloadSource).toHaveBeenCalledWith("file-1");
+    expect(ports.uploadFile).toHaveBeenCalledOnce();
+    const [buffer, filename] = (ports.uploadFile as any).mock.calls[0];
+    expect(buffer).toEqual(SVG_FIXTURE);
+    expect(filename).toBe("logo-blue.svg");
+    // No Drive link should be handed back.
     const responded = (ports.respond as any).mock.calls.map((c: any[]) => JSON.stringify(c[0])).join(" ");
-    expect(responded).toContain("drive.google.com");
+    expect(responded).not.toContain("drive.google.com");
+  });
+
+  it("falls back to a DM notice when uploading is unavailable (ephemeral slash context)", async () => {
+    const ports = makePorts({ uploadFile: vi.fn(async () => false) });
+    const result: ResolvedAsset = {
+      asset: makeAsset(),
+      needsCustomSize: false,
+      requestedWidth: null,
+      requestedHeight: null,
+    };
+
+    await handleResolvedAsset(result, ports);
+
+    const responded = (ports.respond as any).mock.calls.map((c: any[]) => JSON.stringify(c[0])).join(" ");
+    expect(responded).toContain("私訊");
   });
 
   it("emits a white-logo warning for white transparent assets", async () => {
@@ -94,10 +113,10 @@ describe("handleResolvedAsset — custom size", () => {
     await handleResolvedAsset(result, ports);
 
     expect(ports.downloadSource).toHaveBeenCalledWith("file-1");
-    expect(ports.uploadPng).toHaveBeenCalledOnce();
+    expect(ports.uploadFile).toHaveBeenCalledOnce();
 
     // The uploaded buffer must be a real 500x500 PNG.
-    const [buffer, filename] = (ports.uploadPng as any).mock.calls[0];
+    const [buffer, filename] = (ports.uploadFile as any).mock.calls[0];
     const meta = await sharp(buffer as Buffer).metadata();
     expect(meta.width).toBe(500);
     expect(meta.height).toBe(500);
@@ -116,8 +135,31 @@ describe("handleResolvedAsset — custom size", () => {
     await handleResolvedAsset(result, ports);
 
     expect(ports.downloadSource).not.toHaveBeenCalled();
-    expect(ports.uploadPng).not.toHaveBeenCalled();
+    expect(ports.uploadFile).not.toHaveBeenCalled();
     const responded = (ports.respond as any).mock.calls.map((c: any[]) => JSON.stringify(c[0])).join(" ");
     expect(responded).toContain("4000");
+  });
+
+  it("renders with the chosen background and skips white-logo warning on black bg", async () => {
+    // Generate a tiny valid white PNG for the test
+    const tinyWhitePng = await sharp({
+      create: { width: 100, height: 100, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 0 } }
+    }).png().toBuffer();
+
+    const calls: any = { rendered: null, messages: [] };
+    const ports = {
+      respond: async (m: any) => { calls.messages.push(m); },
+      downloadSource: async () => tinyWhitePng,
+      uploadFile: async () => true,
+      maxOutputSize: 4000,
+    };
+    const result = {
+      asset: { id: "a1", source_path: "b/x.png", format: "png", color: "white", background: "transparent", source_drive_file_id: "file-1" },
+      needsCustomSize: true, requestedWidth: 500, requestedHeight: 500, background: "black",
+    } as any;
+    // The key assertion: no white-logo warning was posted when user chose black bg.
+    await handleResolvedAsset(result, ports as any);
+    const warned = calls.messages.some((m: any) => JSON.stringify(m).includes("白色"));
+    expect(warned).toBe(false);
   });
 });

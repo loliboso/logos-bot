@@ -23,6 +23,7 @@ export interface AssetRecord {
   usage: string[];
   source_drive_file_id: string;
   source_path: string;
+  source_modified_time?: string | null;
   intrinsic_width: number | null;
   intrinsic_height: number | null;
   can_resize: boolean;
@@ -32,6 +33,15 @@ export interface AssetRecord {
   review_status: string;
   review_reason: string | null;
   scanner_run_id: number | null;
+}
+
+/** Minimal per-asset state used by the incremental scanner to decide what to
+ *  re-process and what to mark removed. Keyed on the Drive file id. */
+export interface AssetSourceState {
+  id: string;
+  source_drive_file_id: string;
+  source_modified_time: string | null;
+  status: string;
 }
 
 export interface AssetQuery {
@@ -66,15 +76,16 @@ export class CatalogRepo {
     this.db
       .prepare(
         `INSERT INTO assets (id, brand_id, asset_type, variant, language, format, color, background, layout, usage,
-           source_drive_file_id, source_path, intrinsic_width, intrinsic_height, can_resize, status,
+           source_drive_file_id, source_path, source_modified_time, intrinsic_width, intrinsic_height, can_resize, status,
            confidence, inferred_from, review_status, review_reason, scanner_run_id, updated_at)
          VALUES (@id, @brand_id, @asset_type, @variant, @language, @format, @color, @background, @layout, @usage,
-           @source_drive_file_id, @source_path, @intrinsic_width, @intrinsic_height, @can_resize, @status,
+           @source_drive_file_id, @source_path, @source_modified_time, @intrinsic_width, @intrinsic_height, @can_resize, @status,
            @confidence, @inferred_from, @review_status, @review_reason, @scanner_run_id, datetime('now'))
          ON CONFLICT(id) DO UPDATE SET
            brand_id = @brand_id, asset_type = @asset_type, variant = @variant, language = @language,
            format = @format, color = @color, background = @background, layout = @layout, usage = @usage,
            source_drive_file_id = @source_drive_file_id, source_path = @source_path,
+           source_modified_time = @source_modified_time,
            intrinsic_width = @intrinsic_width, intrinsic_height = @intrinsic_height, can_resize = @can_resize,
            status = @status, confidence = @confidence, inferred_from = @inferred_from,
            review_status = @review_status, review_reason = @review_reason, scanner_run_id = @scanner_run_id,
@@ -82,6 +93,7 @@ export class CatalogRepo {
       )
       .run({
         ...asset,
+        source_modified_time: asset.source_modified_time ?? null,
         usage: JSON.stringify(asset.usage),
         inferred_from: JSON.stringify(asset.inferred_from),
         can_resize: asset.can_resize ? 1 : 0,
@@ -96,6 +108,20 @@ export class CatalogRepo {
         )`
       )
       .all({ pattern: `%${alias}%` }) as any[];
+    return rows.map(this.toBrandRecord);
+  }
+
+  getBrandById(brandId: string): BrandRecord | null {
+    const row = this.db
+      .prepare(`SELECT * FROM brands WHERE id = @brandId`)
+      .get({ brandId }) as any;
+    return row ? this.toBrandRecord(row) : null;
+  }
+
+  getAllBrands(): BrandRecord[] {
+    const rows = this.db
+      .prepare(`SELECT * FROM brands WHERE status = 'active'`)
+      .all() as any[];
     return rows.map(this.toBrandRecord);
   }
 
@@ -123,6 +149,26 @@ export class CatalogRepo {
       .prepare(`SELECT * FROM assets WHERE ${conditions.join(" AND ")}`)
       .all(params) as any[];
     return rows.map(this.toAssetRecord);
+  }
+
+  /** Source state for every asset, for incremental scan diffing. Includes all
+   *  statuses (active/removed/…) so the scanner can revive files that reappear. */
+  listAssetSourceState(): AssetSourceState[] {
+    return this.db
+      .prepare(
+        `SELECT id, source_drive_file_id, source_modified_time, status FROM assets`
+      )
+      .all() as AssetSourceState[];
+  }
+
+  /** Mark an asset removed — its Drive source no longer exists. Bot queries
+   *  filter on status='active', so removed assets stop being offered. */
+  markAssetRemoved(assetId: string): void {
+    this.db
+      .prepare(
+        `UPDATE assets SET status = 'removed', updated_at = datetime('now') WHERE id = @assetId`
+      )
+      .run({ assetId });
   }
 
   startScannerRun(): number {

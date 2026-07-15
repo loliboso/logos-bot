@@ -5,6 +5,7 @@ import { ConversationStore } from "./conversation-store";
 import { AssetResolver } from "./asset-resolver";
 import { CatalogRepo, BrandRecord } from "../catalog/catalog-repo";
 import { buildQuestionMessage, buildErrorMessage } from "./response-builder";
+import { buildNoMatchMessage } from "./no-match";
 import { DriveClient } from "../scanner/drive-client";
 import { config } from "../config";
 import { createDeliveryPorts, handleResolvedAsset } from "./delivery";
@@ -26,11 +27,13 @@ export function registerCommands(
       return;
     }
 
-    const parsed = await parser.parseUserRequest(text);
+    const parsed = parser.parseUserRequest(text);
     const state = conversationManager.startConversation(command.user_id, command.channel_id, parsed);
 
-    const brands = parsed.brand ? repo.findBrandByAlias(parsed.brand) : [];
-    if (brands.length === 1) state.resolvedBrandId = brands[0].id;
+    const brands = parsed.brandCandidates
+      .map((id) => repo.getBrandById(id))
+      .filter((b): b is NonNullable<typeof b> => b !== null);
+    if (parsed.brand) state.resolvedBrandId = parsed.brand;
 
     const assets = state.resolvedBrandId ? repo.getActiveAssets(state.resolvedBrandId) : [];
     const question = conversationManager.getNextQuestion(state, brands, assets);
@@ -38,9 +41,9 @@ export function registerCommands(
     if (!question && conversationManager.isComplete(state)) {
       const result = resolver.resolve(state);
       if (result) {
-        // Slash-command responses are ephemeral and can't upload files; a
-        // custom-size request here is told to use DM instead (handled by the
-        // default uploadPng fallback in createDeliveryPorts).
+        // Slash-command responses are ephemeral and can't upload files. With no
+        // uploadFile provided, delivery falls back to asking the user to DM the
+        // bot instead of handing back an inaccessible Drive link.
         const ports = createDeliveryPorts({
           driveClient,
           respond,
@@ -48,7 +51,9 @@ export function registerCommands(
         });
         await handleResolvedAsset(result, ports);
       } else {
-        await respond(buildErrorMessage("找不到符合條件的 Logo，請嘗試其他描述。"));
+        const noMatch = buildNoMatchMessage(state, repo);
+        if (noMatch.state) conversations.set(command.user_id, noMatch.state);
+        await respond(noMatch.message);
       }
       return;
     }
@@ -78,21 +83,23 @@ export function registerCommands(
 
     const updated = conversationManager.applyAnswer(state, field, value);
     const brands: BrandRecord[] = updated.resolvedBrandId
-      ? [{ id: updated.resolvedBrandId } as BrandRecord]
-      : repo.findBrandByAlias(updated.parsed.brand || "");
+      ? [repo.getBrandById(updated.resolvedBrandId)].filter((b): b is NonNullable<typeof b> => b !== null)
+      : updated.parsed.brandCandidates
+          .map((id) => repo.getBrandById(id))
+          .filter((b): b is NonNullable<typeof b> => b !== null);
     const assets = updated.resolvedBrandId ? repo.getActiveAssets(updated.resolvedBrandId) : [];
     const question = conversationManager.getNextQuestion(updated, brands, assets);
 
     if (!question && conversationManager.isComplete(updated)) {
-      conversations.delete(userId);
       const result = resolver.resolve(updated);
       if (result) {
+        conversations.delete(userId);
         const channelId = (body as any).channel?.id as string | undefined;
         const ports = createDeliveryPorts({
           driveClient,
           respond,
           maxOutputSize: config.MAX_OUTPUT_SIZE,
-          uploadPng: channelId
+          uploadFile: channelId
             ? async (buffer, filename, title) => {
                 await client.files.uploadV2({ channel_id: channelId, file: buffer, filename, title });
               }
@@ -100,7 +107,10 @@ export function registerCommands(
         });
         await handleResolvedAsset(result, ports);
       } else {
-        await respond(buildErrorMessage("找不到符合條件的 Logo。"));
+        const noMatch = buildNoMatchMessage(updated, repo);
+        if (noMatch.state) conversations.set(userId, noMatch.state);
+        else conversations.delete(userId);
+        await respond(noMatch.message);
       }
       return;
     }

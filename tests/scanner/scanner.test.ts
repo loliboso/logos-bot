@@ -74,13 +74,15 @@ describe("scanDriveRoot", () => {
     expect(normalFiles.length).toBe(10);
   });
 
-  it("marks files in archive folders", async () => {
+  it("skips archive folders entirely (no assets, no AI spend)", async () => {
     const client = new MockDriveClient() as unknown as DriveClient;
     const result = await scanDriveRoot(client, "root-folder-id");
 
+    // Archive folders (封存/@封存/舊版) are pruned from the walk, so their
+    // files never reach the catalog at all.
     const archived = result.files.filter((f) => f.folderSemantics === "archive");
-    expect(archived.length).toBe(1);
-    expect(archived[0].name).toBe("old-logo.svg");
+    expect(archived.length).toBe(0);
+    expect(result.files.some((f) => f.name === "old-logo.svg")).toBe(false);
   });
 
   it("marks files in campaign folders", async () => {
