@@ -70,6 +70,15 @@ const svgFile = (id: string, name: string, modifiedTime: string): DriveFile => (
   size: 100,
 });
 
+const pngFile = (id: string, name: string, modifiedTime: string): DriveFile => ({
+  id,
+  name,
+  mimeType: "image/png",
+  parents: ["brand-folder"],
+  modifiedTime,
+  size: 100,
+});
+
 // Counts generateStructured calls so tests can assert how many files hit AI.
 function countingProvider(): { provider: AiProvider; calls: () => number } {
   let calls = 0;
@@ -227,6 +236,38 @@ describe("runFullScan incremental", () => {
     expect(second.calls()).toBe(2);
     expect(summary.processed).toBe(2);
     expect(summary.unchanged).toBe(0);
+  });
+
+  it("keeps an SVG and a PNG of the same logo as distinct assets (no id collision)", async () => {
+    const drive = new MockDrive([
+      svgFile("f1", "logo-blue.svg", "2025-03-01T00:00:00Z"),
+      pngFile("f2", "logo-blue.png", "2025-03-01T00:00:00Z"), // same base name, different format
+    ]);
+    const summary = await runFullScan(scanOptions(drive, countingProvider().provider, db));
+
+    expect(summary.processed).toBe(2);
+    const assets = new CatalogRepo(db).findAssets({});
+    expect(assets.length).toBe(2); // would be 1 before the format-in-id fix
+    const ids = assets.map((a) => a.id).sort();
+    expect(ids.some((id) => id.endsWith("-svg"))).toBe(true);
+    expect(ids.some((id) => id.endsWith("-png"))).toBe(true);
+    expect(new Set(assets.map((a) => a.format))).toEqual(new Set(["svg", "png"]));
+  });
+
+  it("retires the old asset when a file's id changes (rename) instead of orphaning it", async () => {
+    await runFullScan(
+      scanOptions(new MockDrive([svgFile("f1", "logo-blue.svg", "2025-03-01T00:00:00Z")]), countingProvider().provider, db)
+    );
+    // Same Drive file id, renamed (new base name) + new modifiedTime so it re-processes.
+    const summary = await runFullScan(
+      scanOptions(new MockDrive([svgFile("f1", "logo-primary.svg", "2025-06-01T00:00:00Z")]), countingProvider().provider, db)
+    );
+
+    expect(summary.processed).toBe(1);
+    expect(summary.removed).toBe(1); // the old id is retired, not left as a duplicate
+    const active = new CatalogRepo(db).findAssets({});
+    expect(active.length).toBe(1);
+    expect(active[0].id).toContain("logo-primary");
   });
 
   it("revives a removed asset that reappears with the same modifiedTime", async () => {

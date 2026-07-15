@@ -44,9 +44,11 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
 
   // Snapshot existing catalog state keyed on Drive file id, so we can skip
   // files whose modifiedTime is unchanged and detect ones that disappeared.
+  // seenAssetIds collects every asset id this run keeps or produces; anything
+  // active but absent from it at the end is retired (see deletion detection).
   const priorState = repo.listAssetSourceState();
   const priorByFileId = new Map(priorState.map((s) => [s.source_drive_file_id, s]));
-  const seenFileIds = new Set<string>();
+  const seenAssetIds = new Set<string>();
 
   const scanResult = await scanDriveRoot(driveClient, rootFolderId);
   let accepted = 0;
@@ -56,13 +58,12 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
   let unchanged = 0;
 
   for (const file of scanResult.files) {
-    seenFileIds.add(file.id);
-
     // Incremental skip: an active asset whose Drive modifiedTime hasn't changed
     // needs no download and no AI call. Requiring status='active' means a file
     // that was previously removed (then reappeared) is re-processed and revived.
     const prior = priorByFileId.get(file.id);
     if (!full && prior && prior.status === "active" && prior.source_modified_time === file.modifiedTime) {
+      seenAssetIds.add(prior.id); // unchanged and not re-upserted — keep it alive
       unchanged++;
       continue;
     }
@@ -94,9 +95,13 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
       status: "active",
     });
 
-    // Build asset ID
-    const assetId = `${metadata.brand_id}-${file.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    // Build asset ID. The format MUST be part of the id — otherwise an SVG and a
+    // PNG of the same logo (e.g. svg/logo-blue.svg + png/logo-blue.png) collide
+    // on the same id and silently overwrite each other on upsert.
     const format = file.mimeType === "image/svg+xml" ? "svg" : file.mimeType === "image/png" ? "png" : "ai";
+    const base = file.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const assetId = `${metadata.brand_id}-${base}-${format}`;
+    seenAssetIds.add(assetId);
 
     const asset = {
       id: assetId,
@@ -132,11 +137,13 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
     else ignored++;
   }
 
-  // Deletion detection: any active asset whose Drive source wasn't seen this
-  // run has disappeared from Drive — mark it removed so the bot stops offering
-  // it. Compute the diff in JS and apply in one transaction.
+  // Deletion detection: retire any active asset this run did not keep or produce
+  // (id absent from seenAssetIds). That covers a Drive source that disappeared
+  // AND a source whose id changed — a rename, a new format-aware id, or updated
+  // naming rules — so stale rows never linger as orphaned duplicates. Unchanged
+  // skips added their id above, so they survive. Apply in one transaction.
   const toRemove = priorState.filter(
-    (s) => s.status === "active" && !seenFileIds.has(s.source_drive_file_id)
+    (s) => s.status === "active" && !seenAssetIds.has(s.id)
   );
   const removeAll = db.transaction((ids: string[]) => {
     for (const id of ids) repo.markAssetRemoved(id);
