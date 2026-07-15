@@ -39,9 +39,9 @@ When review_reason is needed, write it in Taiwan Mandarin (繁體中文).
 
 /**
  * Deterministic filename rules that override the AI's shape guess. A file named
- * mark/square/favicon (or 正方形) is a square asset, and mark/favicon files are
- * brand marks — these signals are reliable enough that we don't leave them to
- * the model. Mutates and returns the metadata, and records why in inferred_from.
+ * mark/square/icon/favicon (or 正方形) is a square asset, and mark/favicon files
+ * are brand marks — these signals are reliable enough that we don't leave them
+ * to the model. Mutates and returns the metadata, records why in inferred_from.
  */
 export function applyFilenameShapeRules(
   fileName: string,
@@ -49,7 +49,7 @@ export function applyFilenameShapeRules(
 ): AiInferredMetadata {
   const n = fileName.toLowerCase();
   const isSquare =
-    ["mark", "square", "favicon"].some((k) => n.includes(k)) || fileName.includes("正方形");
+    ["mark", "square", "icon", "favicon"].some((k) => n.includes(k)) || fileName.includes("正方形");
   const isMark = n.includes("mark") || n.includes("favicon");
 
   let applied = false;

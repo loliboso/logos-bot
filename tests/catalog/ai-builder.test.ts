@@ -107,8 +107,8 @@ describe("AiBuilder", () => {
       confidence: 0.9, inferred_from: [], review_status: "accepted", review_reason: null,
     });
 
-    it("marks mark/square/favicon/正方形 filenames as square layout", () => {
-      for (const name of ["logo-mark.svg", "brand-square.png", "favicon.svg", "正方形版.svg"]) {
+    it("marks mark/square/icon/favicon/正方形 filenames as square layout", () => {
+      for (const name of ["logo-mark.svg", "brand-square.png", "app-icon.png", "favicon.svg", "正方形版.svg"]) {
         expect(applyFilenameShapeRules(name, base()).layout).toBe("square");
       }
     });
@@ -116,8 +116,9 @@ describe("AiBuilder", () => {
     it("sets asset_type=mark for mark and favicon filenames", () => {
       expect(applyFilenameShapeRules("logo-mark.svg", base()).asset_type).toBe("mark");
       expect(applyFilenameShapeRules("favicon.png", base()).asset_type).toBe("mark");
-      // 正方形 / square are shape-only — they do not imply a mark
+      // 正方形 / square / icon are shape-only — they do not imply a mark
       expect(applyFilenameShapeRules("hero-square.png", base()).asset_type).toBe("logo");
+      expect(applyFilenameShapeRules("app-icon.png", base()).asset_type).toBe("logo");
     });
 
     it("leaves ordinary logo filenames untouched (no rule tag)", () => {
