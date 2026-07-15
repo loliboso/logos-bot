@@ -285,20 +285,38 @@ describe("ConversationManager", () => {
   function baseParsed(over: any = {}) {
     return {
       brand: "b", brandCandidates: ["b"], format: "png", color: "black",
-      language: null, asset_type: null, width: null, height: null,
-      background: null, raw_text: "x", ...over,
+      language: null, asset_type: null, layout: null, width: null, height: null,
+      background: null, paddingRatio: null, raw_text: "x", ...over,
     };
   }
 
-  test("asks background after a custom size is set", () => {
+  test("asks padding right after a custom size, before background", () => {
     const mgr = new ConversationManager();
     const state = mgr.startConversation("u", "c", baseParsed({ width: 500, height: 500 }) as any);
     state.resolvedBrandId = "b";
     state.sizeResolved = true; // size already answered as custom
     const assets = [{ format: "png", color: "black", can_resize: false } as any];
     const q = mgr.getNextQuestion(state, [], assets);
+    expect(q?.field).toBe("padding");
+    expect(q?.options?.map((o) => o.value)).toEqual(["0", "0.2"]);
+  });
+
+  test("asks background after padding is set", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed({ width: 500, height: 500, paddingRatio: 0 }) as any);
+    state.resolvedBrandId = "b";
+    state.sizeResolved = true;
+    const assets = [{ format: "png", color: "black", can_resize: false } as any];
+    const q = mgr.getNextQuestion(state, [], assets);
     expect(q?.field).toBe("background");
     expect(q?.options?.map((o) => o.value)).toEqual(["transparent", "white", "black"]);
+  });
+
+  test("applyAnswer sets paddingRatio", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed({ width: 500, height: 500 }) as any);
+    expect(mgr.applyAnswer(state, "padding", "0.2").parsed.paddingRatio).toBe(0.2);
+    expect(mgr.applyAnswer(state, "padding", "0").parsed.paddingRatio).toBe(0);
   });
 
   test("does NOT ask background for original size", () => {
@@ -332,7 +350,7 @@ describe("ConversationManager", () => {
     return {
       brand: "b", brandCandidates: ["b"], format: "svg", color: null,
       language: null, asset_type: null, layout: null, width: null, height: null,
-      background: null, raw_text: "x", ...over,
+      background: null, paddingRatio: null, raw_text: "x", ...over,
     } as ParsedRequest;
   }
 
@@ -417,9 +435,13 @@ describe("ConversationManager", () => {
     expect(afterInput?.parsed.height).toBe(600);
     expect(afterInput?.awaitingCustomSize).toBe(false);
 
-    // Should now ask background
+    // Should ask padding first...
     const assets = [{ format: "png", color: "black", can_resize: false } as any];
     const q = mgr.getNextQuestion(afterInput!, [], assets);
-    expect(q?.field).toBe("background");
+    expect(q?.field).toBe("padding");
+
+    // ...then background once padding is answered
+    const afterPadding = mgr.applyAnswer(afterInput!, "padding", "0");
+    expect(mgr.getNextQuestion(afterPadding, [], assets)?.field).toBe("background");
   });
 });

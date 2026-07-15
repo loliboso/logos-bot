@@ -205,9 +205,23 @@ export class ConversationManager {
       }
     }
 
-    // Background is only meaningful once a custom size is chosen — the render
-    // canvas is what gets a fill. Original size returns the source untouched.
+    // Padding and background are only meaningful once a custom size is chosen —
+    // they describe the render canvas. Original size returns the source
+    // untouched. Ask padding right after size, per the two use cases: a
+    // presentation wants the logo edge-to-edge (不留白), a social avatar wants
+    // breathing room (留白). paddingRatio stays null until answered.
     const hasCustomSize = state.parsed.width !== null && state.parsed.height !== null;
+    if (hasCustomSize && state.parsed.paddingRatio === null) {
+      return {
+        text: "要不要在四周留白？（大頭貼建議留白，簡報通常不留）",
+        field: "padding",
+        options: [
+          { label: "不留白", value: "0" },
+          { label: "留白（約 20%）", value: "0.2" },
+        ],
+      };
+    }
+
     if (hasCustomSize && !state.backgroundResolved) {
       return {
         text: "要什麼底色？",
@@ -249,6 +263,9 @@ export class ConversationManager {
           next.parsed.width = w;
           next.parsed.height = h;
         }
+        break;
+      case "padding":
+        next.parsed.paddingRatio = Number(value);
         break;
       case "background":
         next.parsed.background = value as "transparent" | "white" | "black";

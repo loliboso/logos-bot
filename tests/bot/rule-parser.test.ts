@@ -20,8 +20,16 @@ describe("parseFields", () => {
   test("empty when no keywords", () => {
     expect(parseFields("給我 logo")).toEqual({
       format: null, color: null, language: null,
-      asset_type: "logo", layout: null, width: null, height: null, background: null,
+      asset_type: "logo", layout: null, width: null, height: null,
+      background: null, paddingRatio: null,
     });
+  });
+
+  test("parses padding intent, with 'no padding' phrases winning", () => {
+    expect(parseFields("1000x1000 留白").paddingRatio).toBe(0.2);
+    expect(parseFields("去留白").paddingRatio).toBe(0);
+    expect(parseFields("不留白").paddingRatio).toBe(0);
+    expect(parseFields("我要 logo").paddingRatio).toBeNull();
   });
 
   test("extracts layout (form) keywords", () => {

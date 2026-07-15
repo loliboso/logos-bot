@@ -12,6 +12,8 @@ export interface ParsedRequest {
   width: number | null;
   height: number | null;
   background: "transparent" | "white" | "black" | null;
+  /** Margin ratio for custom-size renders. null = not decided yet. */
+  paddingRatio: number | null;
   raw_text: string;
 }
 

@@ -100,6 +100,7 @@ export async function handleResolvedAsset(
     background: result.background && result.background !== "transparent"
       ? result.background
       : "transparent",
+    paddingRatio: result.paddingRatio ?? 0,
   });
 
   const outName = `${asset.id}-${width}x${height}.png`;

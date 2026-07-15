@@ -7,6 +7,7 @@ export interface ResolvedAsset {
   requestedWidth: number | null;
   requestedHeight: number | null;
   background: "transparent" | "white" | "black" | null;
+  paddingRatio: number | null;
 }
 
 export class AssetResolver {
@@ -38,6 +39,7 @@ export class AssetResolver {
       requestedWidth: state.parsed.width,
       requestedHeight: state.parsed.height,
       background: state.parsed.background,
+      paddingRatio: state.parsed.paddingRatio,
     };
   }
 

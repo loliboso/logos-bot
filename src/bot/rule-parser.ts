@@ -39,6 +39,13 @@ function first(rules: Rule[], text: string): string | null {
   return null;
 }
 
+// 留白比例。「去/無/不留白」要先判，因為它們都含「留白」子字串。
+function parsePadding(text: string): number | null {
+  if (/去留白|無留白|不留白|no\s?padding/i.test(text)) return 0;
+  if (/留白|留邊|padding/i.test(text)) return 0.2;
+  return null;
+}
+
 export function parseFields(text: string) {
   const size = text.match(/(\d{2,5})\s*[x×]\s*(\d{2,5})/i);
   return {
@@ -50,5 +57,6 @@ export function parseFields(text: string) {
     width: size ? parseInt(size[1], 10) : null,
     height: size ? parseInt(size[2], 10) : null,
     background: first(BACKGROUND, text) as "transparent" | "white" | "black" | null,
+    paddingRatio: parsePadding(text),
   };
 }

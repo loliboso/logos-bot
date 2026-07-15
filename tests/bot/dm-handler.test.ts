@@ -83,9 +83,11 @@ describe("DM Handler - Custom Size Flow", () => {
         color: "blue",
         language: null,
         asset_type: null,
+        layout: null,
         width: null,
         height: null,
         background: null,
+        paddingRatio: null,
         raw_text: text,
       })),
     } as any;
@@ -111,7 +113,7 @@ describe("DM Handler - Custom Size Flow", () => {
     );
   });
 
-  it("asks background question after user types custom dimensions", async () => {
+  it("asks padding question after user types custom dimensions (before delivering)", async () => {
     const mockSay = vi.fn();
     const mockClient = {
       chat: {
@@ -141,8 +143,8 @@ describe("DM Handler - Custom Size Flow", () => {
     const message2 = { text: "800x600", user: "user123", channel: "dm123" };
     await messageHandler({ message: message2, say: mockSay, client: mockClient });
 
-    // Should ask for background, NOT deliver file
-    expect(mockSay).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining("底色") }));
+    // Should ask about padding (留白) next, NOT deliver the file yet
+    expect(mockSay).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining("留白") }));
     expect(mockClient.files.uploadV2).not.toHaveBeenCalled();
   });
 });
