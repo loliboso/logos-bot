@@ -28,6 +28,27 @@ describe("database schema", () => {
     expect(names).toContain("scanner_runs");
     expect(names).toContain("manual_overrides");
     expect(names).toContain("generated_outputs");
+    expect(names).toContain("deliveries");
+  });
+
+  it("records and lists deliveries newest-first", () => {
+    const repo = new CatalogRepo(db);
+    repo.recordDelivery({
+      slack_user_id: "U1", brand_id: "the-news-lens", asset_id: "svg-blue",
+      output_format: "png", width: 500, height: 500, background: "white",
+      padding_ratio: 0.2, purpose: "簡報首頁", purpose_url: null,
+    });
+    repo.recordDelivery({
+      slack_user_id: "U2", brand_id: "the-news-lens", asset_id: "svg-blue",
+      output_format: "svg", width: null, height: null, background: null,
+      padding_ratio: null, purpose: "貼文 https://x.tw/1", purpose_url: "https://x.tw/1",
+    });
+    const rows = repo.listRecentDeliveries();
+    expect(rows).toHaveLength(2);
+    expect(rows[0].slack_user_id).toBe("U2"); // newest first
+    expect(rows[0].purpose_url).toBe("https://x.tw/1");
+    expect(rows[1].width).toBe(500);
+    expect(rows[1].padding_ratio).toBe(0.2);
   });
 
   it("enforces foreign key on assets.brand_id", () => {

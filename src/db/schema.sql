@@ -67,6 +67,25 @@ CREATE TABLE IF NOT EXISTS generated_outputs (
   UNIQUE(source_asset_id, requested_width, requested_height, background, output_format)
 );
 
+-- Audit log: one row per delivered logo, recording who took what and why.
+-- Source of truth for the informal "did anyone misuse a logo" review; a Slack
+-- notice to the design/PR reviewers is sent best-effort on top of this.
+CREATE TABLE IF NOT EXISTS deliveries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  slack_user_id TEXT NOT NULL,
+  brand_id TEXT,
+  asset_id TEXT,
+  output_format TEXT,
+  width INTEGER,
+  height INTEGER,
+  background TEXT,
+  padding_ratio REAL,
+  purpose TEXT NOT NULL,
+  purpose_url TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_deliveries_created ON deliveries(created_at);
 CREATE INDEX IF NOT EXISTS idx_assets_brand ON assets(brand_id);
 CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status, review_status);
 CREATE INDEX IF NOT EXISTS idx_assets_format ON assets(format);

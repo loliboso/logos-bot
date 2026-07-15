@@ -58,4 +58,16 @@ export const config = {
   get MAX_OUTPUT_SIZE(): number {
     return parseInt(process.env.MAX_OUTPUT_SIZE || "4000", 10);
   },
+  /**
+   * Slack channel/user IDs (comma-separated) that receive a notice each time a
+   * logo is delivered — the design/PR colleagues doing the informal misuse
+   * check. Empty means "log to the DB only, notify no one". Optional so the bot
+   * runs fine before it's configured.
+   */
+  get AUDIT_NOTIFY_CHANNELS(): string[] {
+    return (process.env.AUDIT_NOTIFY_CHANNELS || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  },
 };

@@ -9,6 +9,7 @@ import { buildNoMatchMessage } from "./no-match";
 import { DriveClient } from "../scanner/drive-client";
 import { config } from "../config";
 import { createDeliveryPorts, handleResolvedAsset } from "./delivery";
+import { createAuditSink } from "./audit";
 
 export function registerCommands(
   app: App,
@@ -109,6 +110,7 @@ export function registerCommands(
                 await client.files.uploadV2({ channel_id: channelId, file: buffer, filename, title });
               }
             : undefined,
+          recordDelivery: createAuditSink(repo, client as any, config.AUDIT_NOTIFY_CHANNELS),
         });
         await handleResolvedAsset(result, ports);
       } else {

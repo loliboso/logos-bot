@@ -1,6 +1,12 @@
 import { CatalogRepo, AssetRecord } from "../catalog/catalog-repo";
 import { ConversationState } from "./conversation";
 
+/** ResolvedAsset fields that don't depend on the direct-vs-render decision. */
+type ResolvedBase = Omit<
+  ResolvedAsset,
+  "asset" | "needsCustomSize" | "requestedWidth" | "requestedHeight"
+>;
+
 export interface ResolvedAsset {
   asset: AssetRecord;
   needsCustomSize: boolean;
@@ -8,6 +14,10 @@ export interface ResolvedAsset {
   requestedHeight: number | null;
   background: "transparent" | "white" | "black" | null;
   paddingRatio: number | null;
+  /** Audit context: who asked and why, carried through to delivery logging. */
+  requestedByUserId: string;
+  purpose: string | null;
+  purposeUrl: string | null;
 }
 
 export class AssetResolver {
@@ -31,7 +41,13 @@ export class AssetResolver {
     const svg = assets.find((a) => a.format === "svg") ?? null;
     const png = this.largestPng(assets);
     const wantsCustomSize = p.width !== null && p.height !== null;
-    const base = { background: p.background, paddingRatio: p.paddingRatio };
+    const base = {
+      background: p.background,
+      paddingRatio: p.paddingRatio,
+      requestedByUserId: state.userId,
+      purpose: state.purpose,
+      purposeUrl: state.purposeUrl,
+    };
 
     // Explicit vector-file request → hand over the SVG untouched (size is moot
     // for a vector). Falls through to the raster path if no SVG exists.
@@ -69,19 +85,11 @@ export class AssetResolver {
     return pngs[0] ?? null;
   }
 
-  private direct(
-    asset: AssetRecord,
-    base: { background: ResolvedAsset["background"]; paddingRatio: number | null }
-  ): ResolvedAsset {
+  private direct(asset: AssetRecord, base: ResolvedBase): ResolvedAsset {
     return { asset, needsCustomSize: false, requestedWidth: null, requestedHeight: null, ...base };
   }
 
-  private render(
-    asset: AssetRecord,
-    width: number,
-    height: number,
-    base: { background: ResolvedAsset["background"]; paddingRatio: number | null }
-  ): ResolvedAsset {
+  private render(asset: AssetRecord, width: number, height: number, base: ResolvedBase): ResolvedAsset {
     return { asset, needsCustomSize: true, requestedWidth: width, requestedHeight: height, ...base };
   }
 }

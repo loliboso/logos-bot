@@ -41,6 +41,8 @@ export interface ConversationState {
   resolvedBrandId: string | null;
   resolvedAssetId: string | null;
   awaitingCustomSize: boolean;
+  /** Awaiting the free-text purpose reply (mandatory gate before delivery). */
+  awaitingPurpose: boolean;
   /**
    * Whether the size question has been answered. Needed because "original size"
    * leaves width/height null — the same as "not yet asked" — so without this we
@@ -49,8 +51,18 @@ export interface ConversationState {
   sizeResolved: boolean;
   /** Whether the background question has been answered (custom-size only). */
   backgroundResolved: boolean;
+  /** Why the user needs this logo (URL encouraged). Null until answered. */
+  purpose: string | null;
+  /** A URL extracted from the purpose reply, if any. */
+  purposeUrl: string | null;
   step: ConversationStep;
   startedAt: string;
+}
+
+/** Pull the first http(s) URL out of a free-text purpose reply, if present. */
+export function extractUrl(text: string): string | null {
+  const m = text.match(/https?:\/\/\S+/i);
+  return m ? m[0] : null;
 }
 
 export interface Question {
@@ -68,8 +80,11 @@ export class ConversationManager {
       resolvedBrandId: null,
       resolvedAssetId: null,
       awaitingCustomSize: false,
+      awaitingPurpose: false,
       sizeResolved: false,
       backgroundResolved: false,
+      purpose: null,
+      purposeUrl: null,
       step: "brand_select",
       startedAt: new Date().toISOString(),
     };
@@ -238,7 +253,29 @@ export class ConversationManager {
       };
     }
 
+    // Mandatory usage gate — always the last step, so no logo is delivered
+    // without recording why. Free text; a URL is encouraged. Setting
+    // awaitingPurpose routes the user's next message to applyPurposeInput.
+    if (state.purpose === null) {
+      state.awaitingPurpose = true;
+      return {
+        text: "最後一步：這個 Logo 要用在哪裡？請簡述用途；若已有連結，直接貼上網址（例如貼文或網頁 URL）。",
+        field: "purpose",
+      };
+    }
+
     return null;
+  }
+
+  applyPurposeInput(state: ConversationState, value: string): ConversationState | null {
+    const purpose = value.trim();
+    if (!purpose) return null; // empty reply is not a valid purpose — re-ask
+    return {
+      ...state,
+      purpose,
+      purposeUrl: extractUrl(purpose),
+      awaitingPurpose: false,
+    };
   }
 
   applyAnswer(state: ConversationState, field: string, value: string): ConversationState {
@@ -296,7 +333,8 @@ export class ConversationManager {
   isComplete(state: ConversationState): boolean {
     return (
       state.resolvedBrandId !== null &&
-      state.parsed.format !== null
+      state.parsed.format !== null &&
+      state.purpose !== null
     );
   }
 }

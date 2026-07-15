@@ -10,6 +10,7 @@ import { buildNoMatchMessage } from "./no-match";
 import { config } from "../config";
 import { DriveClient } from "../scanner/drive-client";
 import { createDeliveryPorts, handleResolvedAsset } from "./delivery";
+import { createAuditSink } from "./audit";
 
 /**
  * Post an immediate "processing" notice so the user isn't staring at silence
@@ -54,7 +55,44 @@ export function registerDmHandler(
     const userId = (message as any).user as string;
     const channelId = (message as any).channel as string;
 
+    const audit = createAuditSink(repo, client as any, config.AUDIT_NOTIFY_CHANNELS);
+
     const pendingState = conversations.get(userId);
+    if (pendingState?.awaitingPurpose) {
+      // The purpose reply is the final gate. Apply it, then resolve + deliver.
+      const state = conversationManager.applyPurposeInput(pendingState, text);
+      if (!state) {
+        await say(buildErrorMessage("請簡述這個 Logo 的用途（若有連結可直接貼上網址）才能取得檔案。"));
+        return;
+      }
+
+      const clearNotice = await postProcessing(client as any, channelId);
+      try {
+        const result = resolver.resolve(state);
+        if (!result) {
+          const noMatch = buildNoMatchMessage(state, repo);
+          if (noMatch.state) conversations.set(userId, noMatch.state);
+          else conversations.delete(userId);
+          await say(noMatch.message);
+          return;
+        }
+        conversations.delete(userId);
+        const ports = createDeliveryPorts({
+          driveClient,
+          respond: say,
+          maxOutputSize: config.MAX_OUTPUT_SIZE,
+          uploadFile: async (buffer, filename, title) => {
+            await client.files.uploadV2({ channel_id: channelId, file: buffer, filename, title });
+          },
+          recordDelivery: audit,
+        });
+        await handleResolvedAsset(result, ports);
+      } finally {
+        await clearNotice();
+      }
+      return;
+    }
+
     if (pendingState?.awaitingCustomSize) {
       const state = conversationManager.applyCustomSizeInput(pendingState, text);
       if (!state) {
@@ -97,6 +135,7 @@ export function registerDmHandler(
           uploadFile: async (buffer, filename, title) => {
             await client.files.uploadV2({ channel_id: channelId, file: buffer, filename, title });
           },
+          recordDelivery: audit,
         });
         await handleResolvedAsset(result, ports);
       } finally {
@@ -136,6 +175,7 @@ export function registerDmHandler(
             uploadFile: async (buffer, filename, title) => {
               await client.files.uploadV2({ channel_id: channelId, file: buffer, filename, title });
             },
+            recordDelivery: audit,
           });
           await handleResolvedAsset(result, ports);
         } else {

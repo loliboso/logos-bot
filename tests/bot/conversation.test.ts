@@ -169,10 +169,12 @@ describe("ConversationManager", () => {
     expect(manager.getNextQuestion(state, [twoBrands[0]], sampleAssets)?.field).toBe("size");
 
     const updated = manager.applyAnswer(state, "size", "original");
-    const question = manager.getNextQuestion(updated, [twoBrands[0]], sampleAssets);
+    // Size is not re-asked; the mandatory purpose gate is what remains.
+    expect(manager.getNextQuestion(updated, [twoBrands[0]], sampleAssets)?.field).toBe("purpose");
 
-    expect(question).toBeNull();
-    expect(manager.isComplete(updated)).toBe(true);
+    const withPurpose = manager.applyPurposeInput(updated, "放在簡報");
+    expect(manager.getNextQuestion(withPurpose!, [twoBrands[0]], sampleAssets)).toBeNull();
+    expect(manager.isComplete(withPurpose!)).toBe(true);
   });
 
   it("accepts a custom dimension reply", () => {
@@ -212,7 +214,7 @@ describe("ConversationManager", () => {
     expect(updated.resolvedBrandId).toBe("the-news-lens");
   });
 
-  it("isComplete when brand and format are resolved", () => {
+  it("isComplete requires brand, format, and a stated purpose", () => {
     const parsed: ParsedRequest = {
       brand: "the-news-lens",
       brandCandidates: ["the-news-lens"],
@@ -226,7 +228,10 @@ describe("ConversationManager", () => {
     };
     const state = manager.startConversation("user1", "ch1", parsed);
     state.resolvedBrandId = "the-news-lens";
-    expect(manager.isComplete(state)).toBe(true);
+    // Brand + format resolved but no purpose yet → not complete.
+    expect(manager.isComplete(state)).toBe(false);
+    const withPurpose = manager.applyPurposeInput(state, "官網頁尾");
+    expect(manager.isComplete(withPurpose!)).toBe(true);
   });
 
   it("not complete without brand resolution", () => {
@@ -334,14 +339,39 @@ describe("ConversationManager", () => {
     expect(mgr.applyAnswer(state, "padding", "0").parsed.paddingRatio).toBe(0);
   });
 
-  test("does NOT ask background for original size", () => {
+  test("does NOT ask background for original size (goes straight to purpose)", () => {
     const mgr = new ConversationManager();
     const state = mgr.startConversation("u", "c", baseParsed() as any);
     state.resolvedBrandId = "b";
     state.sizeResolved = true; // chose original → width/height stay null
     const assets = [{ format: "png", color: "black", can_resize: false } as any];
+    // No custom size → background skipped; the purpose gate is what's left.
     const q = mgr.getNextQuestion(state, [], assets);
-    expect(q).toBeNull();
+    expect(q?.field).toBe("purpose");
+  });
+
+  test("purpose gate: asks, captures URL, then completes", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed() as any);
+    state.resolvedBrandId = "b";
+    state.sizeResolved = true;
+    const assets = [{ format: "png", color: "black", can_resize: false } as any];
+
+    const q = mgr.getNextQuestion(state, [], assets);
+    expect(q?.field).toBe("purpose");
+    expect(state.awaitingPurpose).toBe(true);
+
+    const done = mgr.applyPurposeInput(state, "首頁 banner https://tnl.tw/post/123");
+    expect(done?.purpose).toContain("首頁 banner");
+    expect(done?.purposeUrl).toBe("https://tnl.tw/post/123");
+    expect(done?.awaitingPurpose).toBe(false);
+    expect(mgr.getNextQuestion(done!, [], assets)).toBeNull();
+  });
+
+  test("purpose gate rejects an empty reply", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed() as any);
+    expect(mgr.applyPurposeInput(state, "   ")).toBeNull();
   });
 
   test("applyAnswer sets background and marks it resolved", () => {

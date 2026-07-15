@@ -44,6 +44,20 @@ export interface AssetSourceState {
   status: string;
 }
 
+/** One audited logo delivery: who took what, at what settings, and why. */
+export interface DeliveryRecord {
+  slack_user_id: string;
+  brand_id: string | null;
+  asset_id: string | null;
+  output_format: string | null;
+  width: number | null;
+  height: number | null;
+  background: string | null;
+  padding_ratio: number | null;
+  purpose: string;
+  purpose_url: string | null;
+}
+
 export interface AssetQuery {
   brand_id?: string;
   format?: string;
@@ -171,6 +185,25 @@ export class CatalogRepo {
         `UPDATE assets SET status = 'removed', updated_at = datetime('now') WHERE id = @assetId`
       )
       .run({ assetId });
+  }
+
+  /** Append an audit row for a delivered logo. */
+  recordDelivery(row: DeliveryRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO deliveries
+           (slack_user_id, brand_id, asset_id, output_format, width, height, background, padding_ratio, purpose, purpose_url)
+         VALUES
+           (@slack_user_id, @brand_id, @asset_id, @output_format, @width, @height, @background, @padding_ratio, @purpose, @purpose_url)`
+      )
+      .run(row);
+  }
+
+  /** Most-recent deliveries first, for review/export. */
+  listRecentDeliveries(limit = 100): (DeliveryRecord & { id: number; created_at: string })[] {
+    return this.db
+      .prepare(`SELECT * FROM deliveries ORDER BY id DESC LIMIT @limit`)
+      .all({ limit }) as (DeliveryRecord & { id: number; created_at: string })[];
   }
 
   startScannerRun(): number {

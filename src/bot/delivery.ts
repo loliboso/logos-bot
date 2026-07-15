@@ -1,6 +1,7 @@
 import { ResolvedAsset } from "./asset-resolver";
 import { validateDimensions, renderCustomSize } from "../renderer/renderer";
 import { DriveClient } from "../scanner/drive-client";
+import { AuditEvent } from "./audit";
 import {
   buildDeliveryMessage,
   buildErrorMessage,
@@ -25,6 +26,8 @@ export interface DeliveryPorts {
   uploadFile: (buffer: Buffer, filename: string, title: string) => Promise<boolean>;
   /** Max allowed output dimension (config.MAX_OUTPUT_SIZE). */
   maxOutputSize: number;
+  /** Record a successful delivery for audit. Best-effort; never throws. */
+  recordDelivery?: (event: AuditEvent) => Promise<void>;
 }
 
 /**
@@ -38,6 +41,7 @@ export function createDeliveryPorts(opts: {
   respond: (msg: any) => Promise<any>;
   maxOutputSize: number;
   uploadFile?: (buffer: Buffer, filename: string, title: string) => Promise<void>;
+  recordDelivery?: (event: AuditEvent) => Promise<void>;
 }): DeliveryPorts {
   return {
     respond: async (msg) => {
@@ -51,7 +55,33 @@ export function createDeliveryPorts(opts: {
         }
       : async () => false,
     maxOutputSize: opts.maxOutputSize,
+    recordDelivery: opts.recordDelivery,
   };
+}
+
+/** Build the audit event for a delivered asset and hand it to the sink. */
+async function auditDelivery(
+  result: ResolvedAsset,
+  ports: DeliveryPorts,
+  outputFormat: string,
+  width: number | null,
+  height: number | null,
+  assetLabel: string
+): Promise<void> {
+  if (!ports.recordDelivery) return;
+  await ports.recordDelivery({
+    slack_user_id: result.requestedByUserId,
+    brand_id: result.asset.brand_id,
+    asset_id: result.asset.id,
+    output_format: outputFormat,
+    width,
+    height,
+    background: result.background,
+    padding_ratio: result.paddingRatio,
+    purpose: result.purpose ?? "",
+    purpose_url: result.purposeUrl,
+    assetLabel,
+  });
 }
 
 export async function handleResolvedAsset(
@@ -78,6 +108,7 @@ export async function handleResolvedAsset(
       await ports.respond(buildWhiteLogoWarning());
     }
     await ports.respond(buildDeliveryMessage(asset));
+    await auditDelivery(result, ports, asset.format, null, null, fileName);
     return;
   }
 
@@ -119,4 +150,5 @@ export async function handleResolvedAsset(
     await ports.respond(buildWhiteLogoWarning());
   }
   await ports.respond(buildDeliveryMessage(asset, { width, height }));
+  await auditDelivery(result, ports, "png", width, height, fileName);
 }
