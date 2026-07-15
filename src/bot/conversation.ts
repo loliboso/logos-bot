@@ -106,18 +106,22 @@ export class ConversationManager {
       }
     }
 
-    // Format selection
+    // Format selection. Output format is decoupled from what is stored: PNG is
+    // a render target, so we can offer it whenever an SVG exists even if no PNG
+    // was scanned. SVG / .ai are only offered when that source file exists.
     if (!state.parsed.format) {
-      const formats = distinct(narrow(assets, state.parsed).map((a) => a.format));
-      if (formats.length > 1) {
-        return {
-          text: "你想要哪種格式？",
-          field: "format",
-          options: formats.map((f) => ({ label: f.toUpperCase(), value: f })),
-        };
+      const stored = distinct(narrow(assets, state.parsed).map((a) => a.format));
+      const options: { label: string; value: string }[] = [];
+      if (stored.includes("svg")) options.push({ label: "SVG（向量原檔）", value: "svg" });
+      if (stored.includes("svg") || stored.includes("png")) {
+        options.push({ label: "PNG（圖片）", value: "png" });
       }
-      if (formats.length === 1) {
-        state.parsed.format = formats[0];
+      if (stored.includes("ai")) options.push({ label: "AI（原始檔）", value: "ai" });
+      if (options.length > 1) {
+        return { text: "你想要哪種格式？", field: "format", options };
+      }
+      if (options.length === 1) {
+        state.parsed.format = options[0].value;
       }
     }
 

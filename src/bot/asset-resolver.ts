@@ -15,51 +15,73 @@ export class AssetResolver {
 
   resolve(state: ConversationState): ResolvedAsset | null {
     if (!state.resolvedBrandId) return null;
+    const p = state.parsed;
 
+    // Match on attributes only — NOT format. We pick the render source ourselves
+    // so a PNG request can be produced from the SVG (the canonical source).
     const query: Record<string, string> = { brand_id: state.resolvedBrandId };
-    if (state.parsed.format) query.format = state.parsed.format;
-    if (state.parsed.color) query.color = state.parsed.color;
-    if (state.parsed.language) query.language = state.parsed.language;
-    if (state.parsed.asset_type) query.asset_type = state.parsed.asset_type;
-    if (state.parsed.layout) query.layout = state.parsed.layout;
+    if (p.color) query.color = p.color;
+    if (p.language) query.language = p.language;
+    if (p.asset_type) query.asset_type = p.asset_type;
+    if (p.layout) query.layout = p.layout;
 
     const assets = this.repo.findAssets(query);
     if (assets.length === 0) return null;
 
-    const wantsCustomSize = state.parsed.width !== null && state.parsed.height !== null;
-    const best = this.selectBestSource(assets, wantsCustomSize);
-    if (!best) return null;
+    const svg = assets.find((a) => a.format === "svg") ?? null;
+    const png = this.largestPng(assets);
+    const wantsCustomSize = p.width !== null && p.height !== null;
+    const base = { background: p.background, paddingRatio: p.paddingRatio };
 
-    // .ai cannot be rendered; treat it as direct download even if custom size was requested
-    const needsCustomSize = wantsCustomSize && best.format !== "ai";
+    // Explicit vector-file request → hand over the SVG untouched (size is moot
+    // for a vector). Falls through to the raster path if no SVG exists.
+    if (p.format === "svg" && svg) return this.direct(svg, base);
 
-    return {
-      asset: best,
-      needsCustomSize,
-      requestedWidth: state.parsed.width,
-      requestedHeight: state.parsed.height,
-      background: state.parsed.background,
-      paddingRatio: state.parsed.paddingRatio,
-    };
-  }
-
-  selectBestSource(assets: AssetRecord[], wantsCustomSize: boolean): AssetRecord | null {
-    if (assets.length === 0) return null;
-
-    if (wantsCustomSize) {
-      // Prefer SVG for custom rendering
-      const svgs = assets.filter((a) => a.format === "svg");
-      if (svgs.length > 0) return svgs[0];
-      // Fallback: largest PNG
-      const pngs = assets.filter((a) => a.format === "png");
-      pngs.sort((a, b) => (b.intrinsic_width || 0) - (a.intrinsic_width || 0));
-      if (pngs.length > 0) return pngs[0];
-      // Final fallback: .ai (cannot be rendered, so delivery sends original file)
-      const ais = assets.filter((a) => a.format === "ai");
-      return ais[0] || null;
+    // Explicit .ai request → hand over the source file (cannot be rendered).
+    if (p.format === "ai") {
+      const ai = assets.find((a) => a.format === "ai");
+      if (ai) return this.direct(ai, base);
     }
 
-    // For direct download, prefer exact format match
-    return assets[0];
+    // Otherwise the deliverable is a raster PNG. Render from the SVG whenever
+    // one exists, so we never depend on a stored PNG. Fall back to a stored PNG,
+    // then to whatever remains (.ai) as a direct download.
+    if (svg) {
+      const w = wantsCustomSize ? p.width! : svg.intrinsic_width;
+      const h = wantsCustomSize ? p.height! : svg.intrinsic_height;
+      // No custom size and the SVG has no intrinsic dimensions → can't size a
+      // canvas, so hand over the SVG file itself rather than fail.
+      if (w && h) return this.render(svg, w, h, base);
+      return this.direct(svg, base);
+    }
+    if (png) {
+      // Fallback: no SVG. Render the PNG for a custom size, else deliver as-is.
+      return wantsCustomSize ? this.render(png, p.width!, p.height!, base) : this.direct(png, base);
+    }
+    // Only non-renderable formats (e.g. .ai) remain.
+    return this.direct(assets[0], base);
+  }
+
+  private largestPng(assets: AssetRecord[]): AssetRecord | null {
+    const pngs = assets
+      .filter((a) => a.format === "png")
+      .sort((a, b) => (b.intrinsic_width || 0) - (a.intrinsic_width || 0));
+    return pngs[0] ?? null;
+  }
+
+  private direct(
+    asset: AssetRecord,
+    base: { background: ResolvedAsset["background"]; paddingRatio: number | null }
+  ): ResolvedAsset {
+    return { asset, needsCustomSize: false, requestedWidth: null, requestedHeight: null, ...base };
+  }
+
+  private render(
+    asset: AssetRecord,
+    width: number,
+    height: number,
+    base: { background: ResolvedAsset["background"]; paddingRatio: number | null }
+  ): ResolvedAsset {
+    return { asset, needsCustomSize: true, requestedWidth: width, requestedHeight: height, ...base };
   }
 }

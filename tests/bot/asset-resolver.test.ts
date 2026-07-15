@@ -159,6 +159,46 @@ describe("AssetResolver", () => {
     expect(result?.background).toBe("white");
   });
 
+  it("renders PNG output from the SVG source even at original size", () => {
+    // Both svg-blue and png-blue exist; a PNG request must still come from SVG.
+    const state = {
+      userId: "u1", channelId: "c1",
+      parsed: { brand: "TNL", format: "png", color: "blue", language: null, asset_type: null, layout: null, width: null, height: null, background: null, paddingRatio: null, raw_text: "" },
+      resolvedBrandId: "the-news-lens", resolvedAssetId: null, step: "done", startedAt: "",
+    } as unknown as ConversationState;
+    const result = resolver.resolve(state);
+    expect(result?.asset.format).toBe("svg");
+    expect(result?.needsCustomSize).toBe(true);
+    // rendered at the SVG's intrinsic dimensions
+    expect(result?.requestedWidth).toBe(300);
+    expect(result?.requestedHeight).toBe(100);
+  });
+
+  it("falls back to the stored PNG when no SVG exists for the variant", () => {
+    // A green PNG with no SVG counterpart.
+    repo.upsertAsset({ ...pngAsset, id: "png-green", color: "green", source_drive_file_id: "fg" });
+    const base = {
+      userId: "u1", channelId: "c1", resolvedBrandId: "the-news-lens",
+      resolvedAssetId: null, step: "done", startedAt: "",
+    };
+
+    // Original size → direct download the PNG (no render).
+    const original = resolver.resolve({
+      ...base,
+      parsed: { brand: "TNL", format: "png", color: "green", language: null, asset_type: null, layout: null, width: null, height: null, background: null, paddingRatio: null, raw_text: "" },
+    } as unknown as ConversationState);
+    expect(original?.asset.id).toBe("png-green");
+    expect(original?.needsCustomSize).toBe(false);
+
+    // Custom size → render from the PNG fallback.
+    const custom = resolver.resolve({
+      ...base,
+      parsed: { brand: "TNL", format: "png", color: "green", language: null, asset_type: null, layout: null, width: 500, height: 500, background: null, paddingRatio: null, raw_text: "" },
+    } as unknown as ConversationState);
+    expect(custom?.asset.format).toBe("png");
+    expect(custom?.needsCustomSize).toBe(true);
+  });
+
   it("returns .ai asset when custom size requested but only .ai available", () => {
     // Add an .ai-only asset
     const aiAsset: AssetRecord = {

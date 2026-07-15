@@ -113,6 +113,21 @@ describe("ConversationManager", () => {
     expect(question?.options?.map((option) => option.value)).toEqual(["svg", "png"]);
   });
 
+  it("offers PNG for an SVG-only brand (PNG is a render target)", () => {
+    const parsed: ParsedRequest = {
+      brand: "the-news-lens", brandCandidates: ["the-news-lens"],
+      format: null, color: "blue", language: null, asset_type: null, layout: null,
+      width: null, height: null, background: null, paddingRatio: null, raw_text: "test",
+    };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    state.resolvedBrandId = "the-news-lens";
+    // Only an SVG is stored for this brand.
+    const svgOnly = [{ ...sampleAssets[0], format: "svg", color: "blue" }];
+    const question = manager.getNextQuestion(state, [twoBrands[0]], svgOnly);
+    expect(question?.field).toBe("format");
+    expect(question?.options?.map((o) => o.value)).toEqual(["svg", "png"]);
+  });
+
   it("asks for dimensions after the user chooses a custom size", () => {
     const parsed: ParsedRequest = {
       brand: "the-news-lens",
