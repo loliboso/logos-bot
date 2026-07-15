@@ -103,6 +103,13 @@ function countingProvider(): { provider: AiProvider; calls: () => number } {
   return { provider, calls: () => calls };
 }
 
+// A provider whose AI call always fails, to exercise per-file resilience.
+const throwingProvider: AiProvider = {
+  generateStructured: async () => {
+    throw new Error("simulated AI failure");
+  },
+};
+
 function scanOptions(drive: MockDrive, provider: AiProvider, db: Database.Database, full = false) {
   return {
     driveClient: drive as unknown as DriveClient,
@@ -268,6 +275,34 @@ describe("runFullScan incremental", () => {
     const active = new CatalogRepo(db).findAssets({});
     expect(active.length).toBe(1);
     expect(active[0].id).toContain("logo-primary");
+  });
+
+  it("a failing AI call skips the file without aborting the whole scan", async () => {
+    const drive = new MockDrive([
+      svgFile("f1", "logo-blue.svg", "2025-03-01T00:00:00Z"),
+      svgFile("f2", "logo-en-blue.svg", "2025-03-01T00:00:00Z"),
+    ]);
+    // Should resolve (not throw), and record both as failed.
+    const summary = await runFullScan(scanOptions(drive, throwingProvider, db));
+    expect(summary.failed).toBe(2);
+    expect(summary.processed).toBe(0);
+    expect(new CatalogRepo(db).findAssets({}).length).toBe(0);
+  });
+
+  it("keeps an existing asset when its re-scan fails (no retirement over a transient error)", async () => {
+    // Scan 1 succeeds → asset active.
+    await runFullScan(
+      scanOptions(new MockDrive([svgFile("f1", "logo-blue.svg", "2025-03-01T00:00:00Z")]), countingProvider().provider, db)
+    );
+    expect(new CatalogRepo(db).findAssets({}).length).toBe(1);
+
+    // Scan 2: same file, changed modifiedTime (so it re-processes), but AI fails.
+    const summary = await runFullScan(
+      scanOptions(new MockDrive([svgFile("f1", "logo-blue.svg", "2025-09-01T00:00:00Z")]), throwingProvider, db)
+    );
+    expect(summary.failed).toBe(1);
+    expect(summary.removed).toBe(0); // existing asset must NOT be retired
+    expect(new CatalogRepo(db).findAssets({}).length).toBe(1);
   });
 
   it("revives a removed asset that reappears with the same modifiedTime", async () => {

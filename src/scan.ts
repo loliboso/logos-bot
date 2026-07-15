@@ -44,6 +44,7 @@ async function main(): Promise<void> {
   console.log(`   files found:  ${summary.totalFiles}`);
   console.log(`   processed:    ${summary.processed}`);
   console.log(`   unchanged:    ${summary.unchanged}`);
+  console.log(`   failed:       ${summary.failed}`);
   console.log(`   removed:      ${summary.removed}`);
   console.log(`   accepted:     ${summary.accepted}`);
   console.log(`   needs review: ${summary.needsReview}`);

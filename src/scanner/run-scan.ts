@@ -27,6 +27,8 @@ export interface ScanSummary {
   processed: number;
   /** Files skipped because their Drive modifiedTime was unchanged. */
   unchanged: number;
+  /** Files skipped this run because their AI metadata call failed. */
+  failed: number;
   /** Assets marked removed because their Drive source disappeared. */
   removed: number;
   accepted: number;
@@ -56,6 +58,7 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
   let ignored = 0;
   let processed = 0;
   let unchanged = 0;
+  let failed = 0;
 
   for (const file of scanResult.files) {
     // Incremental skip: an active asset whose Drive modifiedTime hasn't changed
@@ -67,8 +70,6 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
       unchanged++;
       continue;
     }
-
-    processed++;
 
     // Download raster/vector content so we can record intrinsic dimensions.
     // Unsupported formats (AI/EPS) and download failures leave dimensions null.
@@ -82,7 +83,20 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
       }
     }
 
-    const metadata = await aiBuilder.buildAssetMetadata(file, dimensions);
+    // A failed AI call (timeout/rate-limit/etc, after the provider's own
+    // retries) must not abort the whole scan. Skip this one file; if it already
+    // had an entry, keep it (register its id) rather than retiring it over a
+    // transient failure. A future scan re-processes it (its modifiedTime is
+    // unchanged, but a failed file never recorded one, so it isn't skipped).
+    let metadata;
+    try {
+      metadata = await aiBuilder.buildAssetMetadata(file, dimensions);
+    } catch (err) {
+      console.warn(`AI metadata failed for ${file.name} (${file.id}):`, err instanceof Error ? err.message : err);
+      if (prior && prior.status === "active") seenAssetIds.add(prior.id);
+      failed++;
+      continue;
+    }
 
     // Upsert brand
     repo.upsertBrand({
@@ -131,6 +145,7 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
     // Apply manual overrides before saving
     const overridden = overrideRepo.applyOverrides(asset);
     repo.upsertAsset(overridden);
+    processed++;
 
     if (overridden.review_status === "accepted") accepted++;
     else if (overridden.review_status === "needs_review") needsReview++;
@@ -160,6 +175,7 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
     totalFiles: scanResult.files.length,
     processed,
     unchanged,
+    failed,
     removed,
     accepted,
     needsReview,
