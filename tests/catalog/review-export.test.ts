@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { generateReviewCsv, generateReviewJson } from "../../src/catalog/review-export";
-import { AssetRecord } from "../../src/catalog/catalog-repo";
+import Database from "better-sqlite3";
+import { readFileSync } from "fs";
+import { join } from "path";
+import { generateReviewCsv, generateReviewJson, exportReviewReports } from "../../src/catalog/review-export";
+import { AssetRecord, CatalogRepo } from "../../src/catalog/catalog-repo";
 
 const sampleAsset: AssetRecord = {
   id: "test-asset",
@@ -51,5 +54,24 @@ describe("generateReviewJson", () => {
     expect(parsed[0].confidence).toBe(0.62);
     expect(parsed[0].review_reason).toContain("子品牌");
     expect(parsed[0].inferred_from).toEqual(["file_name"]);
+  });
+});
+
+describe("exportReviewReports excludes retired assets", () => {
+  it("only writes active assets, not removed leftovers", () => {
+    const db = new Database(":memory:");
+    db.pragma("foreign_keys = ON");
+    db.exec(readFileSync(join(__dirname, "../../src/db/schema.sql"), "utf-8"));
+    const repo = new CatalogRepo(db);
+    repo.upsertBrand({ id: "the-news-lens", display_name: "TNL", aliases: [], brand_group: null, importance: "primary", drive_folder_id: null, status: "active" });
+    repo.upsertAsset({ ...sampleAsset, id: "live", source_drive_file_id: "f-live", status: "active", scanner_run_id: null });
+    repo.upsertAsset({ ...sampleAsset, id: "stale", source_drive_file_id: "f-stale", status: "removed", scanner_run_id: null });
+
+    const dir = join(process.env.TMPDIR || "/tmp", `rev-${Math.random().toString(36).slice(2)}`);
+    exportReviewReports(db, dir);
+    const csv = readFileSync(join(dir, "needs_review.csv"), "utf-8");
+    const dataRows = csv.split("\n").length - 1; // minus header
+    expect(dataRows).toBe(1); // only the active one, not the removed leftover
+    db.close();
   });
 });
