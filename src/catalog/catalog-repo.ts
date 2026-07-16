@@ -177,6 +177,21 @@ export class CatalogRepo {
       .all() as AssetSourceState[];
   }
 
+  /** Retire brands left with no active assets — e.g. their Drive folder was
+   *  renamed (assets moved to a new brand id) or removed. Without this, the old
+   *  brand row lingers forever and pollutes coverage reports / brand matching.
+   *  Returns the number of brands retired. */
+  retireEmptyBrands(): number {
+    const info = this.db
+      .prepare(
+        `UPDATE brands SET status = 'removed', updated_at = datetime('now')
+         WHERE status = 'active'
+           AND id NOT IN (SELECT DISTINCT brand_id FROM assets WHERE status = 'active')`
+      )
+      .run();
+    return info.changes;
+  }
+
   /** Mark an asset removed — its Drive source no longer exists. Bot queries
    *  filter on status='active', so removed assets stop being offered. */
   markAssetRemoved(assetId: string): void {

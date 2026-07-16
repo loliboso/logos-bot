@@ -177,6 +177,10 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
   removeAll(toRemove.map((s) => s.id));
   const removed = toRemove.length;
 
+  // Brands whose assets all just moved away (folder renamed/removed) are now
+  // empty shells — retire them so they leave the catalog and reports.
+  repo.retireEmptyBrands();
+
   repo.completeScannerRun(runId, scanResult.files.length);
   exportReviewReports(db, outputDir);
   generateCoverageReport(db, outputDir);

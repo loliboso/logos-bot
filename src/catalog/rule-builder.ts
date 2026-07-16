@@ -31,7 +31,10 @@ export class RuleBuilder implements MetadataBuilder {
     // Parse attributes from the filename base only (folder names like svg/png
     // would add noise). parseFields also returns format/size/background, which
     // are irrelevant here — the scanner derives format from the mime type.
-    const base = file.name.replace(/\.[^.]+$/, "");
+    // Underscores are treated as separators: the keyword tables match on word
+    // boundaries, but "_" is a word char, so costory_logo_black wouldn't match
+    // logo/black until the underscores become spaces.
+    const base = file.name.replace(/\.[^.]+$/, "").replace(/_/g, " ");
     const parsed = parseFields(base);
 
     const assetType = parsed.asset_type ?? "logo";

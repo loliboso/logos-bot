@@ -31,6 +31,29 @@ describe("database schema", () => {
     expect(names).toContain("deliveries");
   });
 
+  it("retireEmptyBrands retires only brands with no active assets", () => {
+    const repo = new CatalogRepo(db);
+    const brand = (id: string) => repo.upsertBrand({
+      id, display_name: id, aliases: [], brand_group: null,
+      importance: "primary", drive_folder_id: null, status: "active",
+    });
+    brand("keeps"); // will have an active asset
+    brand("zombie"); // renamed folder → no assets left
+    repo.upsertAsset({
+      id: "keeps-logo-svg", brand_id: "keeps", asset_type: "logo", variant: "logo",
+      language: null, format: "svg", color: "blue", background: "transparent", layout: "horizontal",
+      usage: ["general"], source_drive_file_id: "f1", source_path: "keeps/logo.svg",
+      intrinsic_width: null, intrinsic_height: null, can_resize: true, status: "active",
+      confidence: 0.9, inferred_from: [], review_status: "accepted", review_reason: null, scanner_run_id: null,
+    });
+
+    const retired = repo.retireEmptyBrands();
+    expect(retired).toBe(1);
+    const active = repo.getAllBrands().map((b) => b.id);
+    expect(active).toContain("keeps");
+    expect(active).not.toContain("zombie");
+  });
+
   it("records and lists deliveries newest-first", () => {
     const repo = new CatalogRepo(db);
     repo.recordDelivery({

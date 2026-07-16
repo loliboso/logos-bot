@@ -41,6 +41,13 @@ describe("RuleBuilder (zero-AI)", () => {
     expect(m.layout).toBe("square");
   });
 
+  it("parses underscore-delimited filenames (costory_logo_black)", async () => {
+    const m = await builder.buildAssetMetadata(file("costory_logo_black.svg"), null);
+    expect(m.asset_type).toBe("logo");
+    expect(m.color).toBe("black");
+    expect(m.review_status).toBe("accepted"); // not a false needs_review
+  });
+
   it("flags an unrecognisable filename for review instead of guessing silently", async () => {
     const m = await builder.buildAssetMetadata(file("artwork.svg"), null);
     expect(m.asset_type).toBe("logo"); // safe default
