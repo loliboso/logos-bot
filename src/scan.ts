@@ -3,6 +3,8 @@ import { getDb, initDb } from "./db/connection";
 import { DriveClient } from "./scanner/drive-client";
 import { runFullScan } from "./scanner/run-scan";
 import { RuleBuilder } from "./catalog/rule-builder";
+import { CatalogRepo } from "./catalog/catalog-repo";
+import { syncBrandConfig } from "./config/brands-config";
 import { mkdirSync } from "fs";
 import { dirname, join } from "path";
 
@@ -54,6 +56,12 @@ async function main(): Promise<void> {
   console.log(`   needs review: ${summary.needsReview}`);
   console.log(`   ignored:      ${summary.ignored}`);
   console.log(`   reports:      ${outputDir}`);
+
+  // Keep config/brands.json in step with the live brand ids.
+  const activeBrandIds = new CatalogRepo(db).getAllBrands().map((b) => b.id);
+  const { added, stale } = syncBrandConfig(activeBrandIds);
+  if (added.length) console.log(`   brands.json: 新增 ${added.length} 個品牌 id（空別名待填）: ${added.join(", ")}`);
+  if (stale.length) console.log(`   ⚠️ brands.json 有 ${stale.length} 個過期 key（對不上任何品牌，請搬移別名後刪除）: ${stale.join(", ")}`);
 }
 
 main().catch((err) => {

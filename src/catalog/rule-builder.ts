@@ -3,6 +3,7 @@ import { SvgDimensions, PngDimensions } from "../scanner/file-metadata";
 import { AiInferredMetadata, MetadataBuilder, applyFilenameShapeRules } from "./ai-builder";
 import { inferBrand } from "./brand-inference";
 import { parseFields } from "../bot/rule-parser";
+import { formatForName } from "../scanner/drive-client";
 
 /**
  * Deterministic, zero-AI metadata builder. Infers brand from the path
@@ -36,6 +37,31 @@ export class RuleBuilder implements MetadataBuilder {
     // logo/black until the underscores become spaces.
     const base = file.name.replace(/\.[^.]+$/, "").replace(/_/g, " ");
     const parsed = parseFields(base);
+
+    // .ai files are always accepted, never sent to review: they are vector
+    // sources worth offering — either the logo original, or an identity-
+    // guidelines document that still contains the vector logos inside. A
+    // guideline gets its own type so users can tell it apart from a plain logo.
+    if (formatForName(file.name) === "ai") {
+      const isGuideline = /guideline/i.test(file.name);
+      const assetType = isGuideline ? "guideline" : parsed.asset_type ?? "logo";
+      return applyFilenameShapeRules(file.name, {
+        brand_id: brand.brand_id,
+        display_name: brand.display_name,
+        aliases: brand.aliases,
+        asset_type: assetType,
+        variant: assetType,
+        language: parsed.language,
+        color: parsed.color,
+        background: "transparent",
+        layout: parsed.layout,
+        usage: ["general"],
+        confidence: 0.85,
+        inferred_from: ["filename_rules"],
+        review_status: "accepted",
+        review_reason: null,
+      });
+    }
 
     const assetType = parsed.asset_type ?? "logo";
     // "Signal" = anything we actually recognised. If none, the classification is

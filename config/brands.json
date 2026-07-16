@@ -87,8 +87,8 @@
     "aliases": ["7Nanatural", "7 nana"],
     "notes": ""
   },
-  "bi": {
-    "aliases": ["BI", "business insider", "businessinsider"],
+  "business-insider": {
+    "aliases": ["Business Insider", "BI", "business insider", "businessinsider"],
     "notes": ""
   },
   "costory": {
@@ -123,8 +123,8 @@
     "aliases": ["INFOBAHN"],
     "notes": ""
   },
-  "lh": {
-    "aliases": ["LH", "Lifehacker", "life hacker"],
+  "lifehacker": {
+    "aliases": ["Lifehacker", "LH", "life hacker"],
     "notes": ""
   },
   "machi-ya": {
@@ -155,8 +155,12 @@
     "aliases": ["Sirabee"],
     "notes": ""
   },
-  "techinsider": {
-    "aliases": ["techinsider", "tech-insider"],
+  "tech-insider": {
+    "aliases": ["Tech Insider", "techinsider", "tech-insider"],
+    "notes": ""
+  },
+  "health-insider": {
+    "aliases": ["Health Insider", "health insider", "health-insider"],
     "notes": ""
   }
 }

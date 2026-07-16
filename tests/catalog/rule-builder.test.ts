@@ -55,6 +55,18 @@ describe("RuleBuilder (zero-AI)", () => {
     expect(m.review_reason).toContain("檔名");
   });
 
+  it("accepts a guideline .ai and tags it as a guideline (not needs_review)", async () => {
+    const m = await builder.buildAssetMetadata(file("20230104-iCook Identity Guidelines.ai"), null);
+    expect(m.review_status).toBe("accepted");
+    expect(m.asset_type).toBe("guideline");
+  });
+
+  it("accepts a brand-name .ai as a logo original", async () => {
+    const m = await builder.buildAssetMetadata(file("CoSTORY.ai"), null);
+    expect(m.review_status).toBe("accepted");
+    expect(m.asset_type).toBe("logo");
+  });
+
   it("ignores archived files without inspecting the name", async () => {
     const m = await builder.buildAssetMetadata(file("logo-blue.svg", { folderSemantics: "archive" }), null);
     expect(m.review_status).toBe("ignored");

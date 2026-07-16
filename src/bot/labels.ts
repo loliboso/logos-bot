@@ -21,6 +21,7 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   icon: "圖示",
   avatar: "大頭貼",
   special: "特殊款",
+  guideline: "品牌規範手冊（.ai，內含向量 logo）",
 };
 
 export function assetTypeLabel(assetType: string): string {
