@@ -59,12 +59,6 @@
     ],
     "notes": ""
   },
-  "dmc-數據行銷顧問": {
-    "aliases": [
-      "DMC 數據行銷顧問"
-    ],
-    "notes": ""
-  },
   "dmi-威緒": {
     "aliases": [
       "DMI 威緒",
@@ -112,14 +106,7 @@
     ],
     "notes": ""
   },
-  "ohsowow-歐搜哇": {
-    "aliases": [
-      "ohsowow 歐搜哇",
-      "ohsowow",
-      "歐搜哇"
-    ],
-    "notes": ""
-  },
+
   "shareparty": {
     "aliases": [
       "ShareParty",
@@ -264,7 +251,8 @@
   "mashing-up": {
     "aliases": [
       "MASHING UP",
-      "mashingup"
+      "mashingup",
+      "mu"
     ],
     "notes": ""
   },

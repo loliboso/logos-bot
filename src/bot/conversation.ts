@@ -199,29 +199,27 @@ export class ConversationManager {
       }
     }
 
-    // Size selection (only ask if no size provided, not already answered, and
-    // asset can be resized). sizeResolved distinguishes "chose original" (also
-    // width/height null) from "not yet asked".
-    if (!state.sizeResolved && state.parsed.width === null && state.parsed.height === null) {
-      // Any raster/vector source can be rendered to a custom size (renderer
-      // handles both svg and png). .ai cannot be rendered, so it doesn't count.
-      const renderableCount = assets.filter(
-        (a) => a.format === "svg" || a.format === "png"
-      ).length;
-      if (renderableCount > 0) {
-        // Shape/orientation is chosen via the form question above, so size is
-        // now just "keep original" vs "render to a custom pixel size". The old
-        // 500x500 / 1200x630 presets were dropped — a hardcoded square preset
-        // read as a form choice and produced letterboxed output.
-        return {
-          text: "需要指定尺寸嗎？",
-          field: "size",
-          options: [
-            { label: "原始尺寸", value: "original" },
-            { label: "自訂尺寸", value: "custom" },
-          ],
-        };
-      }
+    // Size selection. Only meaningful for PNG output — that is the only format
+    // we render to a pixel size. SVG is delivered as-is (vector scales freely)
+    // and .ai cannot be rendered at all, so neither should be asked for a size.
+    // sizeResolved distinguishes "chose original" (width/height also null) from
+    // "not yet asked".
+    if (
+      state.parsed.format === "png" &&
+      !state.sizeResolved &&
+      state.parsed.width === null &&
+      state.parsed.height === null
+    ) {
+      // Shape/orientation is chosen via the form question above, so size is
+      // now just "keep original" vs "render to a custom pixel size".
+      return {
+        text: "需要指定尺寸嗎？",
+        field: "size",
+        options: [
+          { label: "原始尺寸", value: "original" },
+          { label: "自訂尺寸", value: "custom" },
+        ],
+      };
     }
 
     // Padding and background are only meaningful once a custom size is chosen —

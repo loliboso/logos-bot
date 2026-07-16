@@ -79,7 +79,7 @@ describe("DM Handler - Custom Size Flow", () => {
       parseUserRequest: vi.fn((text: string) => ({
         brand: "test-brand",
         brandCandidates: ["test-brand"],
-        format: "svg",
+        format: "png", // PNG output exercises the size → padding flow this test covers
         color: "blue",
         language: null,
         asset_type: null,

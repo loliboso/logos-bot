@@ -88,8 +88,9 @@ describe("ConversationManager", () => {
     const state = manager.startConversation("user1", "ch1", parsed);
     state.resolvedBrandId = "the-news-lens";
     const question = manager.getNextQuestion(state, [twoBrands[0]], sampleAssets);
-    // Format and color are set, asks about size
-    expect(question?.field).toBe("size");
+    // Format (svg) + color set. SVG is delivered as-is (no size question), so
+    // the only thing left is the mandatory purpose gate.
+    expect(question?.field).toBe("purpose");
   });
 
   it("offers only concrete formats when a format is required", () => {
@@ -154,7 +155,7 @@ describe("ConversationManager", () => {
     const parsed: ParsedRequest = {
       brand: "the-news-lens",
       brandCandidates: ["the-news-lens"],
-      format: "svg",
+      format: "png", // PNG output → size question applies
       color: "blue",
       language: null,
       asset_type: null,
@@ -437,10 +438,10 @@ describe("ConversationManager", () => {
       { ...sampleAssets[0], id: "x1", asset_type: "logo", language: "en", layout: "horizontal", color: "blue" },
       { ...sampleAssets[0], id: "x2", asset_type: "logo", language: null, layout: "horizontal", color: "blue" },
     ];
-    const state = manager.startConversation("u", "c", formParsed({ color: "blue" }));
+    const state = manager.startConversation("u", "c", formParsed({ format: "png", color: "blue" }));
     state.resolvedBrandId = "b";
     const q = manager.getNextQuestion(state, [twoBrands[0]], assets);
-    // language is skipped and never auto-set → flow lands on size
+    // language is skipped and never auto-set → flow lands on size (PNG output)
     expect(q?.field).toBe("size");
     expect(state.parsed.language).toBeNull();
   });
@@ -449,15 +450,35 @@ describe("ConversationManager", () => {
     const assets: AssetRecord[] = [
       { ...sampleAssets[0], id: "u1", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" },
     ];
-    const state = manager.startConversation("u", "c", formParsed({ color: "blue" }));
+    const state = manager.startConversation("u", "c", formParsed({ format: "png", color: "blue" }));
     state.resolvedBrandId = "b";
     const q = manager.getNextQuestion(state, [twoBrands[0]], assets);
-    // nothing to disambiguate → straight to size
+    // nothing to disambiguate → straight to size (PNG output)
     expect(q?.field).toBe("size");
   });
 
+  test("only asks size for PNG output — not svg or ai", () => {
+    const assets: AssetRecord[] = [
+      { ...sampleAssets[0], id: "s", format: "svg", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" },
+    ];
+    // AI: cannot be rendered → no size question, straight to purpose gate.
+    const ai = manager.startConversation("u", "c", formParsed({ format: "ai", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" }));
+    ai.resolvedBrandId = "b";
+    expect(manager.getNextQuestion(ai, [twoBrands[0]], assets)?.field).toBe("purpose");
+
+    // SVG: delivered as-is → no size question either.
+    const svg = manager.startConversation("u", "c", formParsed({ format: "svg", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" }));
+    svg.resolvedBrandId = "b";
+    expect(manager.getNextQuestion(svg, [twoBrands[0]], assets)?.field).toBe("purpose");
+
+    // PNG: rendered to a pixel size → size IS asked.
+    const png = manager.startConversation("u", "c", formParsed({ format: "png", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" }));
+    png.resolvedBrandId = "b";
+    expect(manager.getNextQuestion(png, [twoBrands[0]], assets)?.field).toBe("size");
+  });
+
   test("size options are original / custom only (no hardcoded square preset)", () => {
-    const state = manager.startConversation("u", "c", formParsed({ asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" }));
+    const state = manager.startConversation("u", "c", formParsed({ format: "png", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" }));
     state.resolvedBrandId = "b";
     const q = manager.getNextQuestion(state, [twoBrands[0]], multiFormAssets);
     expect(q?.field).toBe("size");
