@@ -2,22 +2,26 @@ import Database from "better-sqlite3";
 import { DriveClient } from "./drive-client";
 import { scanDriveRoot } from "./scanner";
 import { extractIntrinsicDimensions } from "./file-metadata";
-import { AiBuilder } from "../catalog/ai-builder";
+import { MetadataBuilder } from "../catalog/ai-builder";
 import { CatalogRepo } from "../catalog/catalog-repo";
 import { OverrideRepo } from "../catalog/override-repo";
 import { exportReviewReports } from "../catalog/review-export";
 import { generateCoverageReport } from "../catalog/coverage-report";
-import { AiProvider } from "../ai/provider";
 
 export interface ScanOptions {
   driveClient: DriveClient;
   rootFolderId: string;
   db: Database.Database;
-  aiProvider: AiProvider;
+  /** Produces per-file metadata (AiBuilder or the zero-AI RuleBuilder). */
+  builder: MetadataBuilder;
   outputDir: string;
-  /** Re-process every file, ignoring modifiedTime. Use after changing AI /
+  /** Re-process every file, ignoring modifiedTime. Use after changing
    *  naming inference rules. Defaults to false (incremental). */
   full?: boolean;
+  /** Skip downloading each file to record intrinsic dimensions. The rule-based
+   *  scan sets this so a scan needs no per-file download — seconds, not an hour.
+   *  Render still reads real dimensions from the file at delivery time. */
+  skipDownload?: boolean;
 }
 
 export interface ScanSummary {
@@ -37,10 +41,9 @@ export interface ScanSummary {
 }
 
 export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
-  const { driveClient, rootFolderId, db, aiProvider, outputDir, full = false } = options;
+  const { driveClient, rootFolderId, db, builder, outputDir, full = false, skipDownload = false } = options;
   const repo = new CatalogRepo(db);
   const overrideRepo = new OverrideRepo(db);
-  const aiBuilder = new AiBuilder(aiProvider);
 
   const runId = repo.startScannerRun();
 
@@ -74,7 +77,7 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
     // Download raster/vector content so we can record intrinsic dimensions.
     // Unsupported formats (AI/EPS) and download failures leave dimensions null.
     let dimensions = null;
-    if (file.mimeType === "image/svg+xml" || file.mimeType === "image/png") {
+    if (!skipDownload && (file.mimeType === "image/svg+xml" || file.mimeType === "image/png")) {
       try {
         const content = await driveClient.downloadFile(file.id);
         dimensions = extractIntrinsicDimensions(content, file.mimeType);
@@ -90,9 +93,9 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
     // unchanged, but a failed file never recorded one, so it isn't skipped).
     let metadata;
     try {
-      metadata = await aiBuilder.buildAssetMetadata(file, dimensions);
+      metadata = await builder.buildAssetMetadata(file, dimensions);
     } catch (err) {
-      console.warn(`AI metadata failed for ${file.name} (${file.id}):`, err instanceof Error ? err.message : err);
+      console.warn(`Metadata build failed for ${file.name} (${file.id}):`, err instanceof Error ? err.message : err);
       if (prior && prior.status === "active") seenAssetIds.add(prior.id);
       failed++;
       continue;

@@ -5,6 +5,7 @@ import { join } from "path";
 import { runFullScan } from "../../src/scanner/run-scan";
 import { DriveClient, DriveFile } from "../../src/scanner/drive-client";
 import { AiProvider } from "../../src/ai/provider";
+import { AiBuilder } from "../../src/catalog/ai-builder";
 import { CatalogRepo } from "../../src/catalog/catalog-repo";
 
 function createTestDb(): Database.Database {
@@ -115,7 +116,9 @@ function scanOptions(drive: MockDrive, provider: AiProvider, db: Database.Databa
     driveClient: drive as unknown as DriveClient,
     rootFolderId: "root",
     db,
-    aiProvider: provider,
+    // Wrap the counting provider in an AiBuilder so these incremental tests keep
+    // asserting AI-call counts; the incremental logic under test is builder-agnostic.
+    builder: new AiBuilder(provider),
     outputDir,
     full,
   };

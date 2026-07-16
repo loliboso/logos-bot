@@ -2,7 +2,7 @@ import { config } from "./config";
 import { getDb, initDb } from "./db/connection";
 import { DriveClient } from "./scanner/drive-client";
 import { runFullScan } from "./scanner/run-scan";
-import { createAiProvider } from "./ai/factory";
+import { RuleBuilder } from "./catalog/rule-builder";
 import { mkdirSync } from "fs";
 import { dirname, join } from "path";
 
@@ -19,11 +19,12 @@ async function main(): Promise<void> {
   initDb(db);
 
   const driveClient = new DriveClient(config.GOOGLE_SERVICE_ACCOUNT_KEY);
-  const aiProvider = createAiProvider();
+  const builder = new RuleBuilder();
   const outputDir = join(dirname(config.DATABASE_PATH), "reports");
   mkdirSync(outputDir, { recursive: true });
 
   console.log("🔍 Scanning Drive folder:", config.DRIVE_ROOT_FOLDER_ID);
+  console.log("🧩 rule-based metadata (no AI calls)");
   if (full) {
     console.log("⚙️  --full: re-processing every file (ignoring modifiedTime)");
   } else {
@@ -34,9 +35,12 @@ async function main(): Promise<void> {
     driveClient,
     rootFolderId: config.DRIVE_ROOT_FOLDER_ID,
     db,
-    aiProvider,
+    builder,
     outputDir,
     full,
+    // Rule-based metadata needs no file bytes, so skip per-file downloads: the
+    // scan runs in seconds and can't stall on a hung download.
+    skipDownload: true,
   });
 
   console.log("✅ Scan complete:");

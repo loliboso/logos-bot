@@ -4,6 +4,18 @@ import { ASSET_INFERENCE_SCHEMA } from "./ai-schemas";
 import { AiProvider } from "../ai/provider";
 import { inferBrand } from "./brand-inference";
 
+/**
+ * Produces catalog metadata for a scanned file. Implemented by AiBuilder (LLM
+ * inference) and RuleBuilder (deterministic, filename-based, zero AI). The
+ * scanner depends on this interface so the two are interchangeable.
+ */
+export interface MetadataBuilder {
+  buildAssetMetadata(
+    file: ScannedFile,
+    dimensions: SvgDimensions | PngDimensions | null
+  ): Promise<AiInferredMetadata>;
+}
+
 export interface AiInferredMetadata {
   brand_id: string;
   display_name: string;
@@ -67,7 +79,7 @@ export function applyFilenameShapeRules(
   return metadata;
 }
 
-export class AiBuilder {
+export class AiBuilder implements MetadataBuilder {
   constructor(private provider: AiProvider) {}
 
   async buildAssetMetadata(
