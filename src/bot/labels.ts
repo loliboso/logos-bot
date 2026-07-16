@@ -8,6 +8,10 @@ const COLOR_LABELS: Record<string, string> = {
   black: "黑色",
   white: "白色",
   primary: "主色",
+  gray: "灰色",
+  green: "綠色",
+  greywhite: "灰白",
+  greyblack: "灰黑",
 };
 
 export function colorLabel(color: string): string {

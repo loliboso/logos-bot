@@ -10,6 +10,15 @@ describe("parseFields", () => {
     expect(r.height).toBe(500);
   });
 
+  test("recognises compound greywhite / greyblack colours", () => {
+    expect(parseFields("tm-inline-greywhite").color).toBe("greywhite");
+    expect(parseFields("tm-inline-greyblack").color).toBe("greyblack");
+    expect(parseFields("tm-inline-gray-white").color).toBe("greywhite");
+    // plain grey / white / black still resolve normally
+    expect(parseFields("logo-grey").color).toBe("gray");
+    expect(parseFields("logo-white").color).toBe("white");
+  });
+
   test("black + png + english", () => {
     const r = parseFields("black png english");
     expect(r.color).toBe("black");

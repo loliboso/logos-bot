@@ -6,6 +6,11 @@ const FORMAT: Rule[] = [
   { re: /\b(ai)\b|原始檔|原檔/i, value: "ai" },
 ];
 const COLOR: Rule[] = [
+  // Compound colours first — "greywhite" has no word boundary between the two
+  // words, so the plain grey/white rules below never match it. first() returns
+  // the earliest hit, so these must precede grey/white/black.
+  { re: /gr[ea]y[-\s]?white|灰白/i, value: "greywhite" },
+  { re: /gr[ea]y[-\s]?black|灰黑/i, value: "greyblack" },
   { re: /\b(black|blk)\b|黑/i, value: "black" },
   { re: /\b(white)\b|白/i, value: "white" },
   { re: /\b(blue|primary)\b|藍|主色/i, value: "primary" },
