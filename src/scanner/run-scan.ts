@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { DriveClient } from "./drive-client";
+import { DriveClient, formatForName } from "./drive-client";
 import { scanDriveRoot } from "./scanner";
 import { extractIntrinsicDimensions } from "./file-metadata";
 import { MetadataBuilder } from "../catalog/ai-builder";
@@ -74,13 +74,18 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
       continue;
     }
 
+    // Format is derived from the extension, not Drive's mimeType (which labels
+    // many .svg files text/xml, causing them to be skipped). All downstream
+    // logic — download, dimensions, the id, the stored format — keys off this.
+    const format = formatForName(file.name) ?? "ai";
+
     // Download raster/vector content so we can record intrinsic dimensions.
     // Unsupported formats (AI/EPS) and download failures leave dimensions null.
     let dimensions = null;
-    if (!skipDownload && (file.mimeType === "image/svg+xml" || file.mimeType === "image/png")) {
+    if (!skipDownload && (format === "svg" || format === "png")) {
       try {
         const content = await driveClient.downloadFile(file.id);
-        dimensions = extractIntrinsicDimensions(content, file.mimeType);
+        dimensions = extractIntrinsicDimensions(content, format === "svg" ? "image/svg+xml" : "image/png");
       } catch (err) {
         console.warn(`Failed to download ${file.name} (${file.id}):`, err);
       }
@@ -115,7 +120,6 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
     // Build asset ID. The format MUST be part of the id — otherwise an SVG and a
     // PNG of the same logo (e.g. svg/logo-blue.svg + png/logo-blue.png) collide
     // on the same id and silently overwrite each other on upsert.
-    const format = file.mimeType === "image/svg+xml" ? "svg" : file.mimeType === "image/png" ? "png" : "ai";
     // Keep letters of ANY script (incl. Chinese) and digits; collapse only
     // whitespace/punctuation to "-". A plain [^a-z0-9] would delete Chinese
     // entirely, so filenames differing only in Chinese words (e.g. DaEX 白 直式

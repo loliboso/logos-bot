@@ -10,6 +10,19 @@ export interface DriveFile {
 }
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
+// Supported by file extension. Drive's mimeType for .svg is unreliable — it is
+// often text/xml or application/xml rather than image/svg+xml — so extension is
+// the source of truth for what kind of asset a file is.
+const SUPPORTED_EXTS = new Set(["svg", "png", "ai", "eps"]);
+
+/** The asset format for a filename, by extension. null = unsupported. */
+export function formatForName(name: string): "svg" | "png" | "ai" | null {
+  const ext = name.toLowerCase().split(".").pop() ?? "";
+  if (ext === "svg") return "svg";
+  if (ext === "png") return "png";
+  if (ext === "ai" || ext === "eps") return "ai";
+  return null;
+}
 // Per-request network timeout (ms). Without it a hung connection blocks a whole
 // scan forever — a stuck download once idled a scan for over 30 minutes. On
 // timeout gaxios rejects, which the scanner catches (dimensions left null).
@@ -92,6 +105,8 @@ export class DriveClient {
   }
 
   isSupported(file: DriveFile): boolean {
-    return SUPPORTED_MIMES.has(file.mimeType);
+    const ext = file.name.toLowerCase().split(".").pop() ?? "";
+    // Extension first (Drive mislabels .svg as text/xml); mime as a fallback.
+    return SUPPORTED_EXTS.has(ext) || SUPPORTED_MIMES.has(file.mimeType);
   }
 }
