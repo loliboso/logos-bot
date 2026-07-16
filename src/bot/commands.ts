@@ -13,58 +13,24 @@ import { createAuditSink } from "./audit";
 
 export function registerCommands(
   app: App,
-  parser: RequestParser,
+  _parser: RequestParser,
   conversationManager: ConversationManager,
   resolver: AssetResolver,
   repo: CatalogRepo,
   conversations: ConversationStore,
   driveClient: DriveClient
 ): void {
-  app.command("/logos", async ({ command, ack, respond }) => {
+  // The /logos slash command is intentionally just a redirect to DM. A guided
+  // request needs free-text replies (usage purpose, custom size), and Slack
+  // only delivers plain messages to the bot inside a DM with it. A slash flow
+  // started in a channel or the user's own space can click buttons but its
+  // typed replies never reach the bot, dead-ending the flow — so require a DM.
+  app.command("/logos", async ({ ack, respond }) => {
     await ack();
-    const text = command.text.trim();
-    if (!text) {
-      await respond(buildErrorMessage("請輸入你需要的 Logo 描述，例如：/logos TNL 藍色 SVG"));
-      return;
-    }
-
-    const parsed = parser.parseUserRequest(text);
-    const state = conversationManager.startConversation(command.user_id, command.channel_id, parsed);
-
-    const brands = parsed.brandCandidates
-      .map((id) => repo.getBrandById(id))
-      .filter((b): b is NonNullable<typeof b> => b !== null);
-    if (parsed.brand) state.resolvedBrandId = parsed.brand;
-
-    const assets = state.resolvedBrandId ? repo.getActiveAssets(state.resolvedBrandId) : [];
-    const question = conversationManager.getNextQuestion(state, brands, assets);
-
-    if (!question && conversationManager.isComplete(state)) {
-      const result = resolver.resolve(state);
-      if (result) {
-        // Slash-command responses are ephemeral and can't upload files. With no
-        // uploadFile provided, delivery falls back to asking the user to DM the
-        // bot instead of handing back an inaccessible Drive link.
-        const ports = createDeliveryPorts({
-          driveClient,
-          respond,
-          maxOutputSize: config.MAX_OUTPUT_SIZE,
-        });
-        await handleResolvedAsset(result, ports);
-      } else {
-        const noMatch = buildNoMatchMessage(state, repo);
-        if (noMatch.state) conversations.set(command.user_id, noMatch.state);
-        await respond(noMatch.message);
-      }
-      return;
-    }
-
-    if (question) {
-      conversations.set(command.user_id, state);
-      await respond(buildQuestionMessage(question));
-    } else {
-      await respond(buildErrorMessage("無法辨識品牌，請指定品牌名稱。"));
-    }
+    await respond(
+      "👋 請直接*私訊我（DM LogosBot）*來索取 Logo。\n" +
+        "在這裡用指令沒辦法完成需要打字的步驟（用途、自訂尺寸），請開啟私訊後直接輸入品牌名稱即可（例如：`TNL Mediagene`）。"
+    );
   });
 
   // Button action handler
