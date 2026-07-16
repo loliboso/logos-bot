@@ -264,6 +264,18 @@ describe("runFullScan incremental", () => {
     expect(new Set(assets.map((a) => a.format))).toEqual(new Set(["svg", "png"]));
   });
 
+  it("keeps files that differ only in Chinese words as distinct assets", async () => {
+    // Before the id-normalization fix, [^a-z0-9] deleted the Chinese entirely,
+    // so both names collapsed to the same id and overwrote each other.
+    const drive = new MockDrive([
+      svgFile("f1", "DaEX 白 直式.svg", "2025-03-01T00:00:00Z"),
+      svgFile("f2", "DaEX 深 橫式.svg", "2025-03-01T00:00:00Z"),
+    ]);
+    const summary = await runFullScan(scanOptions(drive, countingProvider().provider, db));
+    expect(summary.processed).toBe(2);
+    expect(new CatalogRepo(db).findAssets({}).length).toBe(2); // not 1
+  });
+
   it("retires the old asset when a file's id changes (rename) instead of orphaning it", async () => {
     await runFullScan(
       scanOptions(new MockDrive([svgFile("f1", "logo-blue.svg", "2025-03-01T00:00:00Z")]), countingProvider().provider, db)

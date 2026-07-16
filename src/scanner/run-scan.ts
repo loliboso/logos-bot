@@ -116,7 +116,15 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
     // PNG of the same logo (e.g. svg/logo-blue.svg + png/logo-blue.png) collide
     // on the same id and silently overwrite each other on upsert.
     const format = file.mimeType === "image/svg+xml" ? "svg" : file.mimeType === "image/png" ? "png" : "ai";
-    const base = file.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    // Keep letters of ANY script (incl. Chinese) and digits; collapse only
+    // whitespace/punctuation to "-". A plain [^a-z0-9] would delete Chinese
+    // entirely, so filenames differing only in Chinese words (e.g. DaEX 白 直式
+    // vs DaEX 深 橫式) collapsed to the same id and overwrote each other.
+    const base = file.name
+      .replace(/\.[^.]+$/, "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-+|-+$/g, "");
     const assetId = `${metadata.brand_id}-${base}-${format}`;
     seenAssetIds.add(assetId);
 
