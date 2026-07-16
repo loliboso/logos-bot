@@ -88,8 +88,9 @@ describe("ConversationManager", () => {
     const state = manager.startConversation("user1", "ch1", parsed);
     state.resolvedBrandId = "the-news-lens";
     const question = manager.getNextQuestion(state, [twoBrands[0]], sampleAssets);
-    // Format and color are set, asks about size
-    expect(question?.field).toBe("size");
+    // Format (svg) + color set. SVG is delivered as-is (no size question), so
+    // the only thing left is the mandatory purpose gate.
+    expect(question?.field).toBe("purpose");
   });
 
   it("offers only concrete formats when a format is required", () => {
@@ -111,6 +112,21 @@ describe("ConversationManager", () => {
 
     expect(question?.field).toBe("format");
     expect(question?.options?.map((option) => option.value)).toEqual(["svg", "png"]);
+  });
+
+  it("offers PNG for an SVG-only brand (PNG is a render target)", () => {
+    const parsed: ParsedRequest = {
+      brand: "the-news-lens", brandCandidates: ["the-news-lens"],
+      format: null, color: "blue", language: null, asset_type: null, layout: null,
+      width: null, height: null, background: null, paddingRatio: null, raw_text: "test",
+    };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    state.resolvedBrandId = "the-news-lens";
+    // Only an SVG is stored for this brand.
+    const svgOnly = [{ ...sampleAssets[0], format: "svg", color: "blue" }];
+    const question = manager.getNextQuestion(state, [twoBrands[0]], svgOnly);
+    expect(question?.field).toBe("format");
+    expect(question?.options?.map((o) => o.value)).toEqual(["svg", "png"]);
   });
 
   it("asks for dimensions after the user chooses a custom size", () => {
@@ -139,7 +155,7 @@ describe("ConversationManager", () => {
     const parsed: ParsedRequest = {
       brand: "the-news-lens",
       brandCandidates: ["the-news-lens"],
-      format: "svg",
+      format: "png", // PNG output → size question applies
       color: "blue",
       language: null,
       asset_type: null,
@@ -154,10 +170,12 @@ describe("ConversationManager", () => {
     expect(manager.getNextQuestion(state, [twoBrands[0]], sampleAssets)?.field).toBe("size");
 
     const updated = manager.applyAnswer(state, "size", "original");
-    const question = manager.getNextQuestion(updated, [twoBrands[0]], sampleAssets);
+    // Size is not re-asked; the mandatory purpose gate is what remains.
+    expect(manager.getNextQuestion(updated, [twoBrands[0]], sampleAssets)?.field).toBe("purpose");
 
-    expect(question).toBeNull();
-    expect(manager.isComplete(updated)).toBe(true);
+    const withPurpose = manager.applyPurposeInput(updated, "放在簡報");
+    expect(manager.getNextQuestion(withPurpose!, [twoBrands[0]], sampleAssets)).toBeNull();
+    expect(manager.isComplete(withPurpose!)).toBe(true);
   });
 
   it("accepts a custom dimension reply", () => {
@@ -197,7 +215,7 @@ describe("ConversationManager", () => {
     expect(updated.resolvedBrandId).toBe("the-news-lens");
   });
 
-  it("isComplete when brand and format are resolved", () => {
+  it("isComplete requires brand, format, and a stated purpose", () => {
     const parsed: ParsedRequest = {
       brand: "the-news-lens",
       brandCandidates: ["the-news-lens"],
@@ -211,7 +229,10 @@ describe("ConversationManager", () => {
     };
     const state = manager.startConversation("user1", "ch1", parsed);
     state.resolvedBrandId = "the-news-lens";
-    expect(manager.isComplete(state)).toBe(true);
+    // Brand + format resolved but no purpose yet → not complete.
+    expect(manager.isComplete(state)).toBe(false);
+    const withPurpose = manager.applyPurposeInput(state, "官網頁尾");
+    expect(manager.isComplete(withPurpose!)).toBe(true);
   });
 
   it("not complete without brand resolution", () => {
@@ -285,30 +306,73 @@ describe("ConversationManager", () => {
   function baseParsed(over: any = {}) {
     return {
       brand: "b", brandCandidates: ["b"], format: "png", color: "black",
-      language: null, asset_type: null, width: null, height: null,
-      background: null, raw_text: "x", ...over,
+      language: null, asset_type: null, layout: null, width: null, height: null,
+      background: null, paddingRatio: null, raw_text: "x", ...over,
     };
   }
 
-  test("asks background after a custom size is set", () => {
+  test("asks padding right after a custom size, before background", () => {
     const mgr = new ConversationManager();
     const state = mgr.startConversation("u", "c", baseParsed({ width: 500, height: 500 }) as any);
     state.resolvedBrandId = "b";
     state.sizeResolved = true; // size already answered as custom
     const assets = [{ format: "png", color: "black", can_resize: false } as any];
     const q = mgr.getNextQuestion(state, [], assets);
+    expect(q?.field).toBe("padding");
+    expect(q?.options?.map((o) => o.value)).toEqual(["0", "0.2"]);
+  });
+
+  test("asks background after padding is set", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed({ width: 500, height: 500, paddingRatio: 0 }) as any);
+    state.resolvedBrandId = "b";
+    state.sizeResolved = true;
+    const assets = [{ format: "png", color: "black", can_resize: false } as any];
+    const q = mgr.getNextQuestion(state, [], assets);
     expect(q?.field).toBe("background");
     expect(q?.options?.map((o) => o.value)).toEqual(["transparent", "white", "black"]);
   });
 
-  test("does NOT ask background for original size", () => {
+  test("applyAnswer sets paddingRatio", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed({ width: 500, height: 500 }) as any);
+    expect(mgr.applyAnswer(state, "padding", "0.2").parsed.paddingRatio).toBe(0.2);
+    expect(mgr.applyAnswer(state, "padding", "0").parsed.paddingRatio).toBe(0);
+  });
+
+  test("does NOT ask background for original size (goes straight to purpose)", () => {
     const mgr = new ConversationManager();
     const state = mgr.startConversation("u", "c", baseParsed() as any);
     state.resolvedBrandId = "b";
     state.sizeResolved = true; // chose original → width/height stay null
     const assets = [{ format: "png", color: "black", can_resize: false } as any];
+    // No custom size → background skipped; the purpose gate is what's left.
     const q = mgr.getNextQuestion(state, [], assets);
-    expect(q).toBeNull();
+    expect(q?.field).toBe("purpose");
+  });
+
+  test("purpose gate: asks, captures URL, then completes", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed() as any);
+    state.resolvedBrandId = "b";
+    state.sizeResolved = true;
+    const assets = [{ format: "png", color: "black", can_resize: false } as any];
+
+    const q = mgr.getNextQuestion(state, [], assets);
+    expect(q?.field).toBe("purpose");
+    expect(state.awaitingPurpose).toBe(true);
+
+    const done = mgr.applyPurposeInput(state, "首頁 banner https://tnl.tw/post/123");
+    expect(done?.purpose).toContain("首頁 banner");
+    expect(done?.purposeUrl).toBe("https://tnl.tw/post/123");
+    expect(done?.awaitingPurpose).toBe(false);
+    expect(mgr.getNextQuestion(done!, [], assets)).toBeNull();
+  });
+
+  test("purpose gate rejects an empty reply", () => {
+    const mgr = new ConversationManager();
+    const state = mgr.startConversation("u", "c", baseParsed() as any);
+    expect(mgr.applyPurposeInput(state, "   ")).toBeNull();
   });
 
   test("applyAnswer sets background and marks it resolved", () => {
@@ -317,6 +381,108 @@ describe("ConversationManager", () => {
     const next = mgr.applyAnswer(state, "background", "white");
     expect(next.parsed.background).toBe("white");
     expect(next.backgroundResolved).toBe(true);
+  });
+
+  // --- Two-axis form/richness questions (asset_type / language / layout) ---
+
+  // Brand with a mix of types, languages and layouts so each axis has >1 value.
+  const multiFormAssets: AssetRecord[] = [
+    { ...sampleAssets[0], id: "m1", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" },
+    { ...sampleAssets[0], id: "m2", asset_type: "logo", language: "en", layout: "vertical", color: "blue" },
+    { ...sampleAssets[0], id: "m3", asset_type: "mark", language: null, layout: "square", color: "black" },
+  ];
+
+  function formParsed(over: any = {}) {
+    return {
+      brand: "b", brandCandidates: ["b"], format: "svg", color: null,
+      language: null, asset_type: null, layout: null, width: null, height: null,
+      background: null, paddingRatio: null, raw_text: "x", ...over,
+    } as ParsedRequest;
+  }
+
+  test("asks type (asset_type) when brand has both logo and mark", () => {
+    const state = manager.startConversation("u", "c", formParsed());
+    state.resolvedBrandId = "b";
+    const q = manager.getNextQuestion(state, [twoBrands[0]], multiFormAssets);
+    expect(q?.field).toBe("asset_type");
+    expect(q?.options?.map((o) => o.value).sort()).toEqual(["logo", "mark"]);
+  });
+
+  test("asks language after type is chosen, narrowed to that type", () => {
+    const state = manager.startConversation("u", "c", formParsed({ asset_type: "logo" }));
+    state.resolvedBrandId = "b";
+    const q = manager.getNextQuestion(state, [twoBrands[0]], multiFormAssets);
+    // logo assets are zh + en; the null-language mark was filtered out by type
+    expect(q?.field).toBe("language");
+    expect(q?.options?.map((o) => o.value).sort()).toEqual(["en", "zh"]);
+  });
+
+  test("asks layout (form) when only the layout axis varies", () => {
+    // Same type, same language, same color — only the shape differs.
+    const assets: AssetRecord[] = [
+      { ...sampleAssets[0], id: "l1", asset_type: "logo", language: "en", layout: "horizontal", color: "blue" },
+      { ...sampleAssets[0], id: "l2", asset_type: "logo", language: "en", layout: "vertical", color: "blue" },
+    ];
+    const state = manager.startConversation("u", "c", formParsed({ color: "blue" }));
+    state.resolvedBrandId = "b";
+    const q = manager.getNextQuestion(state, [twoBrands[0]], assets);
+    expect(q?.field).toBe("layout");
+    expect(q?.options?.map((o) => o.value).sort()).toEqual(["horizontal", "vertical"]);
+  });
+
+  test("does not ask language when only one non-null language coexists with null", () => {
+    // All logos, all horizontal, all blue → only the language axis could vary.
+    // Languages are [en, null]; non-null distinct = [en] (just 1) → must skip,
+    // otherwise auto-picking en would drop the language-neutral asset.
+    const assets: AssetRecord[] = [
+      { ...sampleAssets[0], id: "x1", asset_type: "logo", language: "en", layout: "horizontal", color: "blue" },
+      { ...sampleAssets[0], id: "x2", asset_type: "logo", language: null, layout: "horizontal", color: "blue" },
+    ];
+    const state = manager.startConversation("u", "c", formParsed({ format: "png", color: "blue" }));
+    state.resolvedBrandId = "b";
+    const q = manager.getNextQuestion(state, [twoBrands[0]], assets);
+    // language is skipped and never auto-set → flow lands on size (PNG output)
+    expect(q?.field).toBe("size");
+    expect(state.parsed.language).toBeNull();
+  });
+
+  test("auto-skips all axes when the brand has only one uniform variant", () => {
+    const assets: AssetRecord[] = [
+      { ...sampleAssets[0], id: "u1", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" },
+    ];
+    const state = manager.startConversation("u", "c", formParsed({ format: "png", color: "blue" }));
+    state.resolvedBrandId = "b";
+    const q = manager.getNextQuestion(state, [twoBrands[0]], assets);
+    // nothing to disambiguate → straight to size (PNG output)
+    expect(q?.field).toBe("size");
+  });
+
+  test("only asks size for PNG output — not svg or ai", () => {
+    const assets: AssetRecord[] = [
+      { ...sampleAssets[0], id: "s", format: "svg", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" },
+    ];
+    // AI: cannot be rendered → no size question, straight to purpose gate.
+    const ai = manager.startConversation("u", "c", formParsed({ format: "ai", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" }));
+    ai.resolvedBrandId = "b";
+    expect(manager.getNextQuestion(ai, [twoBrands[0]], assets)?.field).toBe("purpose");
+
+    // SVG: delivered as-is → no size question either.
+    const svg = manager.startConversation("u", "c", formParsed({ format: "svg", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" }));
+    svg.resolvedBrandId = "b";
+    expect(manager.getNextQuestion(svg, [twoBrands[0]], assets)?.field).toBe("purpose");
+
+    // PNG: rendered to a pixel size → size IS asked.
+    const png = manager.startConversation("u", "c", formParsed({ format: "png", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" }));
+    png.resolvedBrandId = "b";
+    expect(manager.getNextQuestion(png, [twoBrands[0]], assets)?.field).toBe("size");
+  });
+
+  test("size options are original / custom only (no hardcoded square preset)", () => {
+    const state = manager.startConversation("u", "c", formParsed({ format: "png", asset_type: "logo", language: "zh", layout: "horizontal", color: "blue" }));
+    state.resolvedBrandId = "b";
+    const q = manager.getNextQuestion(state, [twoBrands[0]], multiFormAssets);
+    expect(q?.field).toBe("size");
+    expect(q?.options?.map((o) => o.value)).toEqual(["original", "custom"]);
   });
 
   test("asks background after user types custom dimensions", () => {
@@ -335,9 +501,13 @@ describe("ConversationManager", () => {
     expect(afterInput?.parsed.height).toBe(600);
     expect(afterInput?.awaitingCustomSize).toBe(false);
 
-    // Should now ask background
+    // Should ask padding first...
     const assets = [{ format: "png", color: "black", can_resize: false } as any];
     const q = mgr.getNextQuestion(afterInput!, [], assets);
-    expect(q?.field).toBe("background");
+    expect(q?.field).toBe("padding");
+
+    // ...then background once padding is answered
+    const afterPadding = mgr.applyAnswer(afterInput!, "padding", "0");
+    expect(mgr.getNextQuestion(afterPadding, [], assets)?.field).toBe("background");
   });
 });

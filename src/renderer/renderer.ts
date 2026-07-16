@@ -7,6 +7,13 @@ export interface RenderRequest {
   width: number;
   height: number;
   background: "transparent" | string;
+  /**
+   * Fraction of the output reserved as margin around the logo (0–0.9). The logo
+   * is fit inside a box shrunk by this ratio, then centred, so the surrounding
+   * space is the padding. 0 (default) means the logo fills the canvas edge to
+   * edge — the "去留白" case, which relies on the source SVG already being tight.
+   */
+  paddingRatio?: number;
 }
 
 export interface RenderResult {
@@ -52,7 +59,15 @@ export async function renderCustomSize(request: RenderRequest): Promise<RenderRe
   const srcWidth = metadata.width!;
   const srcHeight = metadata.height!;
 
-  const scale = Math.min(width / srcWidth, height / srcHeight);
+  // Shrink the fit box by the padding ratio so the logo occupies (1-ratio) of
+  // the canvas, leaving equal margin on all sides. Using both dimensions keeps
+  // tall logos from overflowing while matching the width-based intent for wide
+  // ones. ratio 0 → availW/availH == width/height, i.e. the old edge-to-edge fit.
+  const p = Math.min(Math.max(request.paddingRatio ?? 0, 0), 0.9);
+  const availWidth = width * (1 - p);
+  const availHeight = height * (1 - p);
+
+  const scale = Math.min(availWidth / srcWidth, availHeight / srcHeight);
   const scaledWidth = Math.round(srcWidth * scale);
   const scaledHeight = Math.round(srcHeight * scale);
 

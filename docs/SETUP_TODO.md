@@ -99,6 +99,9 @@ GEMINI_MODEL=gemini-2.5-flash
 # ANTHROPIC_API_KEY=sk-ant-...
 DATABASE_PATH=./data/catalog.db
 MAX_OUTPUT_SIZE=4000
+# 取用稽核：每次交付會私訊這些對象（Slack 使用者或頻道 ID，逗號分隔）。
+# 留空＝只記進 DB、不通知任何人。bot 已把每筆交付寫進 deliveries 表。
+AUDIT_NOTIFY_CHANNELS=
 ```
 
 ---

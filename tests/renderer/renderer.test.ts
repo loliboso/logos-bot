@@ -92,6 +92,29 @@ describe("renderCustomSize", () => {
     expect(metadata.height).toBe(500);
   });
 
+  it("padding shrinks the logo to (1 - ratio) of the canvas", async () => {
+    // 200x50 opaque logo on a transparent 1000x1000 canvas. With ratio 0.2 the
+    // fit box is 800x800; the wide logo binds on width → scaled to 800 wide.
+    const src = await sharp({
+      create: { width: 200, height: 50, channels: 4, background: { r: 0, g: 100, b: 200, alpha: 1 } },
+    }).png().toBuffer();
+
+    const padded = await renderCustomSize({
+      source: src, sourceFormat: "png", width: 1000, height: 1000, background: "transparent", paddingRatio: 0.2,
+    });
+    // .metadata() reports the source dims — run the trim pipeline to get real size.
+    const trimmed = await sharp(padded.buffer).trim().toBuffer({ resolveWithObject: true });
+    expect(trimmed.info.width).toBeGreaterThanOrEqual(796);
+    expect(trimmed.info.width).toBeLessThanOrEqual(804);
+
+    // ratio 0 fills edge to edge → content spans the full width.
+    const full = await renderCustomSize({
+      source: src, sourceFormat: "png", width: 1000, height: 1000, background: "transparent", paddingRatio: 0,
+    });
+    const fullTrim = await sharp(full.buffer).trim().toBuffer({ resolveWithObject: true });
+    expect(fullTrim.info.width).toBeGreaterThanOrEqual(996);
+  });
+
   it("fills the canvas white when background is white", async () => {
     // 1x1 transparent PNG source, render to 4x4 with white bg → corner pixel opaque white
     const src = await sharp({ create: { width: 1, height: 1, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();

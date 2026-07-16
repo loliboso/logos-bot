@@ -101,4 +101,44 @@ describe("GeminiProvider", () => {
       })
     ).rejects.toThrow(/400/);
   });
+
+  it("does NOT retry a 4xx (fails fast)", async () => {
+    const fn = mockFetch({ error: "bad" }, false, 400);
+    const provider = new GeminiProvider("k", "gemini-2.5-flash", { maxAttempts: 3 });
+    await expect(
+      provider.generateStructured({ prompt: "p", toolName: "t", toolDescription: "d", schema: SCHEMA })
+    ).rejects.toThrow(/400/);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a 503 then succeeds", async () => {
+    const ok = {
+      ok: true, status: 200,
+      json: async () => ({ candidates: [{ content: { parts: [{ functionCall: { name: "t", args: { x: "ok" } } }] } }] }),
+      text: async () => "",
+    };
+    const bad = { ok: false, status: 503, json: async () => ({}), text: async () => "overloaded" };
+    const fn = vi.fn().mockResolvedValueOnce(bad).mockResolvedValueOnce(ok);
+    vi.stubGlobal("fetch", fn);
+
+    const provider = new GeminiProvider("k", "gemini-2.5-flash", { maxAttempts: 3 });
+    const result = await provider.generateStructured({ prompt: "p", toolName: "t", toolDescription: "d", schema: SCHEMA });
+    expect(result).toEqual({ x: "ok" });
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it("times out a hung request and rejects", async () => {
+    // fetch never resolves on its own; it only rejects when the abort fires.
+    vi.stubGlobal("fetch", (_url: string, init: any) =>
+      new Promise((_resolve, reject) => {
+        init.signal.addEventListener("abort", () => {
+          const e = new Error("aborted"); e.name = "AbortError"; reject(e);
+        });
+      })
+    );
+    const provider = new GeminiProvider("k", "gemini-2.5-flash", { timeoutMs: 20, maxAttempts: 1 });
+    await expect(
+      provider.generateStructured({ prompt: "p", toolName: "t", toolDescription: "d", schema: SCHEMA })
+    ).rejects.toThrow(/timed out/);
+  });
 });

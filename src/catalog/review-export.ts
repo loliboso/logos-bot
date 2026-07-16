@@ -42,14 +42,17 @@ export function generateReviewJson(assets: AssetRecord[]): string {
 export function exportReviewReports(db: Database.Database, outputDir: string): void {
   mkdirSync(outputDir, { recursive: true });
 
+  // Only live assets. Without the status filter, every asset ever retired
+  // (renamed/removed across past scans) still showed up here — the needs_review
+  // report ballooned with stale rows that no longer exist in the catalog.
   const accepted = db
-    .prepare("SELECT * FROM assets WHERE review_status = 'accepted'")
+    .prepare("SELECT * FROM assets WHERE review_status = 'accepted' AND status = 'active'")
     .all() as any[];
   const needsReview = db
-    .prepare("SELECT * FROM assets WHERE review_status = 'needs_review'")
+    .prepare("SELECT * FROM assets WHERE review_status = 'needs_review' AND status = 'active'")
     .all() as any[];
   const ignored = db
-    .prepare("SELECT * FROM assets WHERE review_status = 'ignored'")
+    .prepare("SELECT * FROM assets WHERE review_status = 'ignored' AND status = 'active'")
     .all() as any[];
 
   const parse = (rows: any[]): AssetRecord[] =>

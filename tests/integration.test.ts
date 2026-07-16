@@ -94,11 +94,14 @@ describe("Integration: full request flow", () => {
     expect(question?.options?.length).toBe(2);
 
     // User selects "The News Lens"
-    const updated = conversationManager.applyAnswer(state, "brand_id", "the-news-lens");
-    expect(updated.resolvedBrandId).toBe("the-news-lens");
+    const afterBrand = conversationManager.applyAnswer(state, "brand_id", "the-news-lens");
+    expect(afterBrand.resolvedBrandId).toBe("the-news-lens");
 
-    // Now conversation is complete
+    // Mandatory purpose gate must be answered before completion.
+    expect(conversationManager.isComplete(afterBrand)).toBe(false);
+    const updated = conversationManager.applyPurposeInput(afterBrand, "社群貼文 https://fb.com/p/1")!;
     expect(conversationManager.isComplete(updated)).toBe(true);
+    expect(updated.purposeUrl).toBe("https://fb.com/p/1");
 
     // Resolve asset
     const result = resolver.resolve(updated);

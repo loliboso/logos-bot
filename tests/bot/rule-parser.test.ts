@@ -10,6 +10,15 @@ describe("parseFields", () => {
     expect(r.height).toBe(500);
   });
 
+  test("recognises compound greywhite / greyblack colours", () => {
+    expect(parseFields("tm-inline-greywhite").color).toBe("greywhite");
+    expect(parseFields("tm-inline-greyblack").color).toBe("greyblack");
+    expect(parseFields("tm-inline-gray-white").color).toBe("greywhite");
+    // plain grey / white / black still resolve normally
+    expect(parseFields("logo-grey").color).toBe("gray");
+    expect(parseFields("logo-white").color).toBe("white");
+  });
+
   test("black + png + english", () => {
     const r = parseFields("black png english");
     expect(r.color).toBe("black");
@@ -20,8 +29,29 @@ describe("parseFields", () => {
   test("empty when no keywords", () => {
     expect(parseFields("給我 logo")).toEqual({
       format: null, color: null, language: null,
-      asset_type: "logo", width: null, height: null, background: null,
+      asset_type: "logo", layout: null, width: null, height: null,
+      background: null, paddingRatio: null,
     });
+  });
+
+  test("parses padding intent, with 'no padding' phrases winning", () => {
+    expect(parseFields("1000x1000 留白").paddingRatio).toBe(0.2);
+    expect(parseFields("去留白").paddingRatio).toBe(0);
+    expect(parseFields("不留白").paddingRatio).toBe(0);
+    expect(parseFields("我要 logo").paddingRatio).toBeNull();
+  });
+
+  test("extracts layout (form) keywords", () => {
+    expect(parseFields("我要橫式的").layout).toBe("horizontal");
+    expect(parseFields("直式 logo").layout).toBe("vertical");
+    expect(parseFields("正方形").layout).toBe("square");
+    expect(parseFields("square png").layout).toBe("square");
+  });
+
+  test("layout is null when no shape word (mark alone stays asset_type only)", () => {
+    const r = parseFields("我要 mark");
+    expect(r.asset_type).toBe("mark");
+    expect(r.layout).toBeNull();
   });
 
   test("full-width × size separator", () => {

@@ -28,6 +28,50 @@ describe("database schema", () => {
     expect(names).toContain("scanner_runs");
     expect(names).toContain("manual_overrides");
     expect(names).toContain("generated_outputs");
+    expect(names).toContain("deliveries");
+  });
+
+  it("retireEmptyBrands retires only brands with no active assets", () => {
+    const repo = new CatalogRepo(db);
+    const brand = (id: string) => repo.upsertBrand({
+      id, display_name: id, aliases: [], brand_group: null,
+      importance: "primary", drive_folder_id: null, status: "active",
+    });
+    brand("keeps"); // will have an active asset
+    brand("zombie"); // renamed folder → no assets left
+    repo.upsertAsset({
+      id: "keeps-logo-svg", brand_id: "keeps", asset_type: "logo", variant: "logo",
+      language: null, format: "svg", color: "blue", background: "transparent", layout: "horizontal",
+      usage: ["general"], source_drive_file_id: "f1", source_path: "keeps/logo.svg",
+      intrinsic_width: null, intrinsic_height: null, can_resize: true, status: "active",
+      confidence: 0.9, inferred_from: [], review_status: "accepted", review_reason: null, scanner_run_id: null,
+    });
+
+    const retired = repo.retireEmptyBrands();
+    expect(retired).toBe(1);
+    const active = repo.getAllBrands().map((b) => b.id);
+    expect(active).toContain("keeps");
+    expect(active).not.toContain("zombie");
+  });
+
+  it("records and lists deliveries newest-first", () => {
+    const repo = new CatalogRepo(db);
+    repo.recordDelivery({
+      slack_user_id: "U1", brand_id: "the-news-lens", asset_id: "svg-blue",
+      output_format: "png", width: 500, height: 500, background: "white",
+      padding_ratio: 0.2, purpose: "簡報首頁", purpose_url: null,
+    });
+    repo.recordDelivery({
+      slack_user_id: "U2", brand_id: "the-news-lens", asset_id: "svg-blue",
+      output_format: "svg", width: null, height: null, background: null,
+      padding_ratio: null, purpose: "貼文 https://x.tw/1", purpose_url: "https://x.tw/1",
+    });
+    const rows = repo.listRecentDeliveries();
+    expect(rows).toHaveLength(2);
+    expect(rows[0].slack_user_id).toBe("U2"); // newest first
+    expect(rows[0].purpose_url).toBe("https://x.tw/1");
+    expect(rows[1].width).toBe(500);
+    expect(rows[1].padding_ratio).toBe(0.2);
   });
 
   it("enforces foreign key on assets.brand_id", () => {

@@ -44,12 +44,27 @@ export interface AssetSourceState {
   status: string;
 }
 
+/** One audited logo delivery: who took what, at what settings, and why. */
+export interface DeliveryRecord {
+  slack_user_id: string;
+  brand_id: string | null;
+  asset_id: string | null;
+  output_format: string | null;
+  width: number | null;
+  height: number | null;
+  background: string | null;
+  padding_ratio: number | null;
+  purpose: string;
+  purpose_url: string | null;
+}
+
 export interface AssetQuery {
   brand_id?: string;
   format?: string;
   color?: string;
   language?: string;
   asset_type?: string;
+  layout?: string;
   variant?: string;
 }
 
@@ -143,6 +158,7 @@ export class CatalogRepo {
     if (query.color) { conditions.push("color = @color"); params.color = query.color; }
     if (query.language) { conditions.push("language = @language"); params.language = query.language; }
     if (query.asset_type) { conditions.push("asset_type = @asset_type"); params.asset_type = query.asset_type; }
+    if (query.layout) { conditions.push("layout = @layout"); params.layout = query.layout; }
     if (query.variant) { conditions.push("variant = @variant"); params.variant = query.variant; }
 
     const rows = this.db
@@ -161,6 +177,21 @@ export class CatalogRepo {
       .all() as AssetSourceState[];
   }
 
+  /** Retire brands left with no active assets — e.g. their Drive folder was
+   *  renamed (assets moved to a new brand id) or removed. Without this, the old
+   *  brand row lingers forever and pollutes coverage reports / brand matching.
+   *  Returns the number of brands retired. */
+  retireEmptyBrands(): number {
+    const info = this.db
+      .prepare(
+        `UPDATE brands SET status = 'removed', updated_at = datetime('now')
+         WHERE status = 'active'
+           AND id NOT IN (SELECT DISTINCT brand_id FROM assets WHERE status = 'active')`
+      )
+      .run();
+    return info.changes;
+  }
+
   /** Mark an asset removed — its Drive source no longer exists. Bot queries
    *  filter on status='active', so removed assets stop being offered. */
   markAssetRemoved(assetId: string): void {
@@ -169,6 +200,25 @@ export class CatalogRepo {
         `UPDATE assets SET status = 'removed', updated_at = datetime('now') WHERE id = @assetId`
       )
       .run({ assetId });
+  }
+
+  /** Append an audit row for a delivered logo. */
+  recordDelivery(row: DeliveryRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO deliveries
+           (slack_user_id, brand_id, asset_id, output_format, width, height, background, padding_ratio, purpose, purpose_url)
+         VALUES
+           (@slack_user_id, @brand_id, @asset_id, @output_format, @width, @height, @background, @padding_ratio, @purpose, @purpose_url)`
+      )
+      .run(row);
+  }
+
+  /** Most-recent deliveries first, for review/export. */
+  listRecentDeliveries(limit = 100): (DeliveryRecord & { id: number; created_at: string })[] {
+    return this.db
+      .prepare(`SELECT * FROM deliveries ORDER BY id DESC LIMIT @limit`)
+      .all({ limit }) as (DeliveryRecord & { id: number; created_at: string })[];
   }
 
   startScannerRun(): number {

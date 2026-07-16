@@ -1,23 +1,27 @@
 import Database from "better-sqlite3";
-import { DriveClient } from "./drive-client";
+import { DriveClient, formatForName } from "./drive-client";
 import { scanDriveRoot } from "./scanner";
 import { extractIntrinsicDimensions } from "./file-metadata";
-import { AiBuilder } from "../catalog/ai-builder";
+import { MetadataBuilder } from "../catalog/ai-builder";
 import { CatalogRepo } from "../catalog/catalog-repo";
 import { OverrideRepo } from "../catalog/override-repo";
 import { exportReviewReports } from "../catalog/review-export";
 import { generateCoverageReport } from "../catalog/coverage-report";
-import { AiProvider } from "../ai/provider";
 
 export interface ScanOptions {
   driveClient: DriveClient;
   rootFolderId: string;
   db: Database.Database;
-  aiProvider: AiProvider;
+  /** Produces per-file metadata (AiBuilder or the zero-AI RuleBuilder). */
+  builder: MetadataBuilder;
   outputDir: string;
-  /** Re-process every file, ignoring modifiedTime. Use after changing AI /
+  /** Re-process every file, ignoring modifiedTime. Use after changing
    *  naming inference rules. Defaults to false (incremental). */
   full?: boolean;
+  /** Skip downloading each file to record intrinsic dimensions. The rule-based
+   *  scan sets this so a scan needs no per-file download — seconds, not an hour.
+   *  Render still reads real dimensions from the file at delivery time. */
+  skipDownload?: boolean;
 }
 
 export interface ScanSummary {
@@ -27,6 +31,8 @@ export interface ScanSummary {
   processed: number;
   /** Files skipped because their Drive modifiedTime was unchanged. */
   unchanged: number;
+  /** Files skipped this run because their AI metadata call failed. */
+  failed: number;
   /** Assets marked removed because their Drive source disappeared. */
   removed: number;
   accepted: number;
@@ -35,18 +41,19 @@ export interface ScanSummary {
 }
 
 export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
-  const { driveClient, rootFolderId, db, aiProvider, outputDir, full = false } = options;
+  const { driveClient, rootFolderId, db, builder, outputDir, full = false, skipDownload = false } = options;
   const repo = new CatalogRepo(db);
   const overrideRepo = new OverrideRepo(db);
-  const aiBuilder = new AiBuilder(aiProvider);
 
   const runId = repo.startScannerRun();
 
   // Snapshot existing catalog state keyed on Drive file id, so we can skip
   // files whose modifiedTime is unchanged and detect ones that disappeared.
+  // seenAssetIds collects every asset id this run keeps or produces; anything
+  // active but absent from it at the end is retired (see deletion detection).
   const priorState = repo.listAssetSourceState();
   const priorByFileId = new Map(priorState.map((s) => [s.source_drive_file_id, s]));
-  const seenFileIds = new Set<string>();
+  const seenAssetIds = new Set<string>();
 
   const scanResult = await scanDriveRoot(driveClient, rootFolderId);
   let accepted = 0;
@@ -54,34 +61,50 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
   let ignored = 0;
   let processed = 0;
   let unchanged = 0;
+  let failed = 0;
 
   for (const file of scanResult.files) {
-    seenFileIds.add(file.id);
-
     // Incremental skip: an active asset whose Drive modifiedTime hasn't changed
     // needs no download and no AI call. Requiring status='active' means a file
     // that was previously removed (then reappeared) is re-processed and revived.
     const prior = priorByFileId.get(file.id);
     if (!full && prior && prior.status === "active" && prior.source_modified_time === file.modifiedTime) {
+      seenAssetIds.add(prior.id); // unchanged and not re-upserted — keep it alive
       unchanged++;
       continue;
     }
 
-    processed++;
+    // Format is derived from the extension, not Drive's mimeType (which labels
+    // many .svg files text/xml, causing them to be skipped). All downstream
+    // logic — download, dimensions, the id, the stored format — keys off this.
+    const format = formatForName(file.name) ?? "ai";
 
     // Download raster/vector content so we can record intrinsic dimensions.
     // Unsupported formats (AI/EPS) and download failures leave dimensions null.
     let dimensions = null;
-    if (file.mimeType === "image/svg+xml" || file.mimeType === "image/png") {
+    if (!skipDownload && (format === "svg" || format === "png")) {
       try {
         const content = await driveClient.downloadFile(file.id);
-        dimensions = extractIntrinsicDimensions(content, file.mimeType);
+        dimensions = extractIntrinsicDimensions(content, format === "svg" ? "image/svg+xml" : "image/png");
       } catch (err) {
         console.warn(`Failed to download ${file.name} (${file.id}):`, err);
       }
     }
 
-    const metadata = await aiBuilder.buildAssetMetadata(file, dimensions);
+    // A failed AI call (timeout/rate-limit/etc, after the provider's own
+    // retries) must not abort the whole scan. Skip this one file; if it already
+    // had an entry, keep it (register its id) rather than retiring it over a
+    // transient failure. A future scan re-processes it (its modifiedTime is
+    // unchanged, but a failed file never recorded one, so it isn't skipped).
+    let metadata;
+    try {
+      metadata = await builder.buildAssetMetadata(file, dimensions);
+    } catch (err) {
+      console.warn(`Metadata build failed for ${file.name} (${file.id}):`, err instanceof Error ? err.message : err);
+      if (prior && prior.status === "active") seenAssetIds.add(prior.id);
+      failed++;
+      continue;
+    }
 
     // Upsert brand
     repo.upsertBrand({
@@ -94,9 +117,20 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
       status: "active",
     });
 
-    // Build asset ID
-    const assetId = `${metadata.brand_id}-${file.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-    const format = file.mimeType === "image/svg+xml" ? "svg" : file.mimeType === "image/png" ? "png" : "ai";
+    // Build asset ID. The format MUST be part of the id — otherwise an SVG and a
+    // PNG of the same logo (e.g. svg/logo-blue.svg + png/logo-blue.png) collide
+    // on the same id and silently overwrite each other on upsert.
+    // Keep letters of ANY script (incl. Chinese) and digits; collapse only
+    // whitespace/punctuation to "-". A plain [^a-z0-9] would delete Chinese
+    // entirely, so filenames differing only in Chinese words (e.g. DaEX 白 直式
+    // vs DaEX 深 橫式) collapsed to the same id and overwrote each other.
+    const base = file.name
+      .replace(/\.[^.]+$/, "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-+|-+$/g, "");
+    const assetId = `${metadata.brand_id}-${base}-${format}`;
+    seenAssetIds.add(assetId);
 
     const asset = {
       id: assetId,
@@ -126,23 +160,30 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
     // Apply manual overrides before saving
     const overridden = overrideRepo.applyOverrides(asset);
     repo.upsertAsset(overridden);
+    processed++;
 
     if (overridden.review_status === "accepted") accepted++;
     else if (overridden.review_status === "needs_review") needsReview++;
     else ignored++;
   }
 
-  // Deletion detection: any active asset whose Drive source wasn't seen this
-  // run has disappeared from Drive — mark it removed so the bot stops offering
-  // it. Compute the diff in JS and apply in one transaction.
+  // Deletion detection: retire any active asset this run did not keep or produce
+  // (id absent from seenAssetIds). That covers a Drive source that disappeared
+  // AND a source whose id changed — a rename, a new format-aware id, or updated
+  // naming rules — so stale rows never linger as orphaned duplicates. Unchanged
+  // skips added their id above, so they survive. Apply in one transaction.
   const toRemove = priorState.filter(
-    (s) => s.status === "active" && !seenFileIds.has(s.source_drive_file_id)
+    (s) => s.status === "active" && !seenAssetIds.has(s.id)
   );
   const removeAll = db.transaction((ids: string[]) => {
     for (const id of ids) repo.markAssetRemoved(id);
   });
   removeAll(toRemove.map((s) => s.id));
   const removed = toRemove.length;
+
+  // Brands whose assets all just moved away (folder renamed/removed) are now
+  // empty shells — retire them so they leave the catalog and reports.
+  repo.retireEmptyBrands();
 
   repo.completeScannerRun(runId, scanResult.files.length);
   exportReviewReports(db, outputDir);
@@ -153,6 +194,7 @@ export async function runFullScan(options: ScanOptions): Promise<ScanSummary> {
     totalFiles: scanResult.files.length,
     processed,
     unchanged,
+    failed,
     removed,
     accepted,
     needsReview,

@@ -5,6 +5,7 @@ import { join } from "path";
 import { runFullScan } from "../../src/scanner/run-scan";
 import { DriveClient, DriveFile } from "../../src/scanner/drive-client";
 import { AiProvider } from "../../src/ai/provider";
+import { AiBuilder } from "../../src/catalog/ai-builder";
 import { CatalogRepo } from "../../src/catalog/catalog-repo";
 
 function createTestDb(): Database.Database {
@@ -70,6 +71,15 @@ const svgFile = (id: string, name: string, modifiedTime: string): DriveFile => (
   size: 100,
 });
 
+const pngFile = (id: string, name: string, modifiedTime: string): DriveFile => ({
+  id,
+  name,
+  mimeType: "image/png",
+  parents: ["brand-folder"],
+  modifiedTime,
+  size: 100,
+});
+
 // Counts generateStructured calls so tests can assert how many files hit AI.
 function countingProvider(): { provider: AiProvider; calls: () => number } {
   let calls = 0;
@@ -94,12 +104,21 @@ function countingProvider(): { provider: AiProvider; calls: () => number } {
   return { provider, calls: () => calls };
 }
 
+// A provider whose AI call always fails, to exercise per-file resilience.
+const throwingProvider: AiProvider = {
+  generateStructured: async () => {
+    throw new Error("simulated AI failure");
+  },
+};
+
 function scanOptions(drive: MockDrive, provider: AiProvider, db: Database.Database, full = false) {
   return {
     driveClient: drive as unknown as DriveClient,
     rootFolderId: "root",
     db,
-    aiProvider: provider,
+    // Wrap the counting provider in an AiBuilder so these incremental tests keep
+    // asserting AI-call counts; the incremental logic under test is builder-agnostic.
+    builder: new AiBuilder(provider),
     outputDir,
     full,
   };
@@ -227,6 +246,78 @@ describe("runFullScan incremental", () => {
     expect(second.calls()).toBe(2);
     expect(summary.processed).toBe(2);
     expect(summary.unchanged).toBe(0);
+  });
+
+  it("keeps an SVG and a PNG of the same logo as distinct assets (no id collision)", async () => {
+    const drive = new MockDrive([
+      svgFile("f1", "logo-blue.svg", "2025-03-01T00:00:00Z"),
+      pngFile("f2", "logo-blue.png", "2025-03-01T00:00:00Z"), // same base name, different format
+    ]);
+    const summary = await runFullScan(scanOptions(drive, countingProvider().provider, db));
+
+    expect(summary.processed).toBe(2);
+    const assets = new CatalogRepo(db).findAssets({});
+    expect(assets.length).toBe(2); // would be 1 before the format-in-id fix
+    const ids = assets.map((a) => a.id).sort();
+    expect(ids.some((id) => id.endsWith("-svg"))).toBe(true);
+    expect(ids.some((id) => id.endsWith("-png"))).toBe(true);
+    expect(new Set(assets.map((a) => a.format))).toEqual(new Set(["svg", "png"]));
+  });
+
+  it("keeps files that differ only in Chinese words as distinct assets", async () => {
+    // Before the id-normalization fix, [^a-z0-9] deleted the Chinese entirely,
+    // so both names collapsed to the same id and overwrote each other.
+    const drive = new MockDrive([
+      svgFile("f1", "DaEX 白 直式.svg", "2025-03-01T00:00:00Z"),
+      svgFile("f2", "DaEX 深 橫式.svg", "2025-03-01T00:00:00Z"),
+    ]);
+    const summary = await runFullScan(scanOptions(drive, countingProvider().provider, db));
+    expect(summary.processed).toBe(2);
+    expect(new CatalogRepo(db).findAssets({}).length).toBe(2); // not 1
+  });
+
+  it("retires the old asset when a file's id changes (rename) instead of orphaning it", async () => {
+    await runFullScan(
+      scanOptions(new MockDrive([svgFile("f1", "logo-blue.svg", "2025-03-01T00:00:00Z")]), countingProvider().provider, db)
+    );
+    // Same Drive file id, renamed (new base name) + new modifiedTime so it re-processes.
+    const summary = await runFullScan(
+      scanOptions(new MockDrive([svgFile("f1", "logo-primary.svg", "2025-06-01T00:00:00Z")]), countingProvider().provider, db)
+    );
+
+    expect(summary.processed).toBe(1);
+    expect(summary.removed).toBe(1); // the old id is retired, not left as a duplicate
+    const active = new CatalogRepo(db).findAssets({});
+    expect(active.length).toBe(1);
+    expect(active[0].id).toContain("logo-primary");
+  });
+
+  it("a failing AI call skips the file without aborting the whole scan", async () => {
+    const drive = new MockDrive([
+      svgFile("f1", "logo-blue.svg", "2025-03-01T00:00:00Z"),
+      svgFile("f2", "logo-en-blue.svg", "2025-03-01T00:00:00Z"),
+    ]);
+    // Should resolve (not throw), and record both as failed.
+    const summary = await runFullScan(scanOptions(drive, throwingProvider, db));
+    expect(summary.failed).toBe(2);
+    expect(summary.processed).toBe(0);
+    expect(new CatalogRepo(db).findAssets({}).length).toBe(0);
+  });
+
+  it("keeps an existing asset when its re-scan fails (no retirement over a transient error)", async () => {
+    // Scan 1 succeeds → asset active.
+    await runFullScan(
+      scanOptions(new MockDrive([svgFile("f1", "logo-blue.svg", "2025-03-01T00:00:00Z")]), countingProvider().provider, db)
+    );
+    expect(new CatalogRepo(db).findAssets({}).length).toBe(1);
+
+    // Scan 2: same file, changed modifiedTime (so it re-processes), but AI fails.
+    const summary = await runFullScan(
+      scanOptions(new MockDrive([svgFile("f1", "logo-blue.svg", "2025-09-01T00:00:00Z")]), throwingProvider, db)
+    );
+    expect(summary.failed).toBe(1);
+    expect(summary.removed).toBe(0); // existing asset must NOT be retired
+    expect(new CatalogRepo(db).findAssets({}).length).toBe(1);
   });
 
   it("revives a removed asset that reappears with the same modifiedTime", async () => {

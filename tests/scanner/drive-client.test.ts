@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { DriveClient } from "../../src/scanner/drive-client";
+import { DriveClient, formatForName } from "../../src/scanner/drive-client";
 
 // A minimal service-account-shaped key so the constructor's JSON.parse + GoogleAuth
 // don't throw. We never make a real network call — the drive client is stubbed.
@@ -15,6 +15,25 @@ function makeClient(listImpl: (params: any) => Promise<any>): DriveClient {
   (client as any).drive = { files: { list: vi.fn(listImpl) } };
   return client;
 }
+
+describe("format / support by extension (Drive mislabels .svg)", () => {
+  const client = new DriveClient(FAKE_KEY);
+  const f = (name: string, mimeType: string) => ({ id: "1", name, mimeType, parents: [], modifiedTime: "", size: 0 });
+
+  it("treats a .svg stored as text/xml as a supported svg", () => {
+    // This is exactly what broke TNL / iCook: Drive typed their .svg as text/xml.
+    expect(client.isSupported(f("logo-primary.svg", "text/xml"))).toBe(true);
+    expect(formatForName("logo-primary.svg")).toBe("svg");
+  });
+
+  it("still supports correctly-typed files and rejects unsupported ones", () => {
+    expect(client.isSupported(f("a.png", "image/png"))).toBe(true);
+    expect(client.isSupported(f("a.ai", "application/illustrator"))).toBe(true);
+    expect(client.isSupported(f("notes.txt", "text/plain"))).toBe(false);
+    expect(formatForName("logo.ai")).toBe("ai");
+    expect(formatForName("readme.md")).toBeNull();
+  });
+});
 
 describe("DriveClient.listFolder", () => {
   it("passes shared-drive params so Shared Drive contents are returned", async () => {
