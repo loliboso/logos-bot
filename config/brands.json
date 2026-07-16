@@ -1,166 +1,318 @@
 {
   "ad2iction-艾迪英特": {
-    "aliases": ["Ad2iction 艾迪英特", "ad2", "艾迪英特", "AD2iction"],
+    "aliases": [
+      "Ad2iction 艾迪英特",
+      "ad2",
+      "艾迪英特",
+      "AD2iction"
+    ],
     "notes": ""
   },
   "agentm-電影神搜": {
-    "aliases": ["AgentMovie 電影神搜", "神搜", "agentmovie", "agent movie"],
+    "aliases": [
+      "AgentMovie 電影神搜",
+      "神搜",
+      "agentmovie",
+      "agent movie"
+    ],
     "notes": ""
   },
   "becoming-aces-未來大人物": {
-    "aliases": ["Becoming Aces 未來大人物", "大人物", "未來大人物", "becoming aces"],
+    "aliases": [
+      "Becoming Aces 未來大人物",
+      "大人物",
+      "未來大人物",
+      "becoming aces"
+    ],
     "notes": ""
   },
   "businessyee-商益": {
-    "aliases": ["Businessyee 商益", "商益", "business yee", "businessyee"],
+    "aliases": [
+      "Businessyee 商益",
+      "商益",
+      "business yee",
+      "businessyee"
+    ],
     "notes": ""
   },
   "cool3c": {
-    "aliases": ["Cool3c", "酷三C", "酷3c"],
+    "aliases": [
+      "Cool3c",
+      "酷三C",
+      "酷3c"
+    ],
     "notes": ""
   },
   "cr-ed": {
-    "aliases": ["Cr.ED", "cred", "cr ed"],
+    "aliases": [
+      "Cr.ED",
+      "cred",
+      "cr ed"
+    ],
     "notes": ""
   },
   "daex-達斯": {
-    "aliases": ["DaEX 達斯", "達斯", "daex"],
+    "aliases": [
+      "DaEX 達斯",
+      "達斯",
+      "daex"
+    ],
     "notes": ""
   },
   "dmc-數據行銷顧問": {
-    "aliases": ["DMC 數據行銷顧問"],
+    "aliases": [
+      "DMC 數據行銷顧問"
+    ],
     "notes": ""
   },
   "dmi-威緒": {
-    "aliases": ["DMI 威緒", "dmi", "威緒"],
+    "aliases": [
+      "DMI 威緒",
+      "dmi",
+      "威緒"
+    ],
     "notes": ""
   },
   "every-little-d": {
-    "aliases": ["every little d", "eld"],
+    "aliases": [
+      "every little d",
+      "eld"
+    ],
     "notes": ""
   },
   "icook-愛料理": {
-    "aliases": ["iCook 愛料理", "iCook", "愛料理"],
+    "aliases": [
+      "iCook 愛料理",
+      "iCook",
+      "愛料理"
+    ],
     "notes": ""
   },
   "igood-愛好物": {
-    "aliases": ["iGood 愛好物", "igood", "愛好物"],
+    "aliases": [
+      "iGood 愛好物",
+      "igood",
+      "愛好物"
+    ],
     "notes": ""
   },
   "inkmagine": {
-    "aliases": ["Inkmagine", "ink magine"],
+    "aliases": [
+      "Inkmagine",
+      "ink magine"
+    ],
     "notes": ""
   },
   "inside-硬塞": {
-    "aliases": ["INSIDE 硬塞", "INSIDE", "硬塞", "硬塞的"],
+    "aliases": [
+      "INSIDE 硬塞",
+      "INSIDE",
+      "硬塞",
+      "硬塞的"
+    ],
     "notes": ""
   },
   "ohsowow-歐搜哇": {
-    "aliases": ["ohsowow 歐搜哇", "ohsowow", "歐搜哇"],
+    "aliases": [
+      "ohsowow 歐搜哇",
+      "ohsowow",
+      "歐搜哇"
+    ],
     "notes": ""
   },
   "shareparty": {
-    "aliases": ["ShareParty", "share party"],
+    "aliases": [
+      "ShareParty",
+      "share party"
+    ],
     "notes": ""
   },
   "sports-vision-運動視界": {
-    "aliases": ["Sports Vision 運動視界", "運動視界", "Sports Vison", "sv", "Sport Vison", "Sports Visons", "Sport Visons"],
+    "aliases": [
+      "Sports Vision 運動視界",
+      "運動視界",
+      "Sports Vison",
+      "sv",
+      "Sport Vison",
+      "Sports Visons",
+      "Sport Visons"
+    ],
     "notes": ""
   },
   "the-news-lens-關鍵評論網": {
-    "aliases": ["The News Lens 關鍵評論網", "關鍵", "tnl", "news lens", "關鍵評論網", "the news lens", "thenewslens"],
+    "aliases": [
+      "The News Lens 關鍵評論網",
+      "關鍵",
+      "tnl",
+      "news lens",
+      "關鍵評論網",
+      "the news lens",
+      "thenewslens"
+    ],
     "notes": ""
   },
   "tnl-mediagene": {
-    "aliases": ["TNL Mediagene", "tnmg", "集團", "媒體集團", "tnlmg", "TNLMediagene", "關鍵集團", "全集團"],
+    "aliases": [
+      "TNL Mediagene",
+      "tnmg",
+      "集團",
+      "媒體集團",
+      "tnlmg",
+      "TNLMediagene",
+      "關鍵集團",
+      "全集團"
+    ],
     "notes": ""
   },
   "tnl-research": {
-    "aliases": ["TNL Research"],
+    "aliases": [
+      "TNL Research"
+    ],
     "notes": ""
   },
   "士奇傳播": {
-    "aliases": ["士奇傳播", "士奇", "IMC digital", "scweb"],
+    "aliases": [
+      "士奇傳播",
+      "士奇",
+      "IMC digital",
+      "scweb"
+    ],
     "notes": ""
   },
   "7nanatural": {
-    "aliases": ["7Nanatural", "7 nana"],
+    "aliases": [
+      "7Nanatural",
+      "7 nana"
+    ],
     "notes": ""
   },
   "business-insider": {
-    "aliases": ["Business Insider", "BI", "business insider", "businessinsider"],
+    "aliases": [
+      "Business Insider",
+      "BI",
+      "business insider",
+      "businessinsider"
+    ],
     "notes": ""
   },
   "costory": {
-    "aliases": ["CoSTORY", "co story"],
+    "aliases": [
+      "CoSTORY",
+      "co story"
+    ],
     "notes": ""
   },
   "digiday": {
-    "aliases": ["DIGIDAY"],
+    "aliases": [
+      "DIGIDAY"
+    ],
     "notes": ""
   },
   "fumumu": {
-    "aliases": ["fumumu"],
+    "aliases": [
+      "fumumu"
+    ],
     "notes": ""
   },
   "fuze": {
-    "aliases": ["FUZE"],
+    "aliases": [
+      "FUZE"
+    ],
     "notes": ""
   },
   "giz-yatai": {
-    "aliases": ["GIZ-YATAI"],
+    "aliases": [
+      "GIZ-YATAI"
+    ],
     "notes": ""
   },
   "gizmodo": {
-    "aliases": ["GIZMODO", "giz modo"],
+    "aliases": [
+      "GIZMODO",
+      "giz modo"
+    ],
     "notes": ""
   },
   "glossy": {
-    "aliases": ["GLOSSY"],
+    "aliases": [
+      "GLOSSY"
+    ],
     "notes": ""
   },
   "infobahn": {
-    "aliases": ["INFOBAHN"],
+    "aliases": [
+      "INFOBAHN"
+    ],
     "notes": ""
   },
   "lifehacker": {
-    "aliases": ["Lifehacker", "LH", "life hacker"],
+    "aliases": [
+      "Lifehacker",
+      "LH",
+      "life hacker"
+    ],
     "notes": ""
   },
   "machi-ya": {
-    "aliases": ["machi-ya", "machiya", "machi"],
+    "aliases": [
+      "machi-ya",
+      "machiya",
+      "machi"
+    ],
     "notes": ""
   },
   "mashing-up": {
-    "aliases": ["MASHING UP", "mashingup"],
+    "aliases": [
+      "MASHING UP",
+      "mashingup"
+    ],
     "notes": ""
   },
   "modern-retail": {
-    "aliases": ["modern-retail"],
+    "aliases": [
+      "modern-retail"
+    ],
     "notes": ""
   },
   "money-insider": {
-    "aliases": ["MONEY INSIDER", "money-insider"],
+    "aliases": [
+      "MONEY INSIDER",
+      "money-insider"
+    ],
     "notes": ""
   },
   "roomie": {
-    "aliases": ["ROOMIE"],
+    "aliases": [
+      "ROOMIE"
+    ],
     "notes": ""
   },
   "roomie-kitchen": {
-    "aliases": ["ROOMIE-kitchen"],
+    "aliases": [
+      "ROOMIE-kitchen"
+    ],
     "notes": ""
   },
   "sirabee": {
-    "aliases": ["Sirabee"],
+    "aliases": [
+      "Sirabee"
+    ],
     "notes": ""
   },
   "tech-insider": {
-    "aliases": ["Tech Insider", "techinsider", "tech-insider"],
+    "aliases": [
+      "Tech Insider",
+      "techinsider",
+      "tech-insider"
+    ],
     "notes": ""
   },
   "health-insider": {
-    "aliases": ["Health Insider", "health insider", "health-insider"],
+    "aliases": [
+      "Health Insider",
+      "health insider",
+      "health-insider"
+    ],
     "notes": ""
   }
 }
