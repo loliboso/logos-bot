@@ -59,11 +59,12 @@ describe("buildDeliveryMessage", () => {
     expect(msg.text).toContain("SVG");
   });
 
-  it("formats custom-size delivery", () => {
+  it("formats custom-size delivery with a .png filename (not the source .svg)", () => {
     const msg = buildDeliveryMessage(asset, { width: 500, height: 500 });
     expect(msg.text).toContain("500 x 500");
     expect(msg.text).toContain("等比例置中");
-    expect(msg.text).toContain("logo-blue.svg");
+    expect(msg.text).toContain("logo-blue.png"); // rendered output is PNG
+    expect(msg.text).not.toContain("logo-blue.svg");
   });
 });
 

@@ -36,9 +36,12 @@ export function buildDeliveryMessage(
   customSize?: { width: number; height: number }
 ): SlackMessage {
   const fileName = asset.source_path.split("/").pop() || asset.id;
+  // A rendered/custom-size deliverable is always a PNG, so show a .png filename
+  // even though the source is an .svg — otherwise "檔案：foo.svg（PNG…）" confuses.
+  const pngName = fileName.replace(/\.[^.]+$/, "") + ".png";
 
   if (customSize) {
-    const detail = `已產出 ${customSize.width} x ${customSize.height} PNG，Logo 已等比例置中，來源：${fileName}`;
+    const detail = `已產出 ${customSize.width} x ${customSize.height} PNG，Logo 已等比例置中，檔名：${pngName}`;
     return {
       text: `${DELIVERY_REMINDER}\n${detail}`,
       blocks: [
@@ -47,7 +50,7 @@ export function buildDeliveryMessage(
         {
           type: "context",
           elements: [
-            { type: "mrkdwn", text: `格式：PNG | 尺寸：${customSize.width}×${customSize.height} | 來源：\`${fileName}\`` },
+            { type: "mrkdwn", text: `格式：PNG | 尺寸：${customSize.width}×${customSize.height} | 檔名：\`${pngName}\`` },
           ],
         },
       ],

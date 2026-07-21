@@ -90,13 +90,15 @@ export async function handleResolvedAsset(
 ): Promise<void> {
   const { asset } = result;
   const fileName = asset.source_path.split("/").pop() || asset.id;
+  // A rendered PNG's filename should end in .png, not the source's .svg — both
+  // the uploaded file and the messages/audit use this to avoid "foo.svg (PNG)".
+  const pngName = fileName.replace(/\.[^.]+$/, "") + ".png";
 
   if (result.renderNaturalPng) {
     // PNG output, no custom size: rasterise the SVG at its natural size.
     const source = await ports.downloadSource(asset.source_drive_file_id);
     const rendered = renderSvgNatural(source);
-    const outName = `${asset.id}.png`;
-    const uploaded = await ports.uploadFile(rendered.buffer, outName, fileName);
+    const uploaded = await ports.uploadFile(rendered.buffer, pngName, pngName);
     if (!uploaded) {
       await ports.respond(
         buildErrorMessage("目前無法在此情境傳送檔案，請直接私訊（DM）我來索取檔案。")
@@ -107,7 +109,7 @@ export async function handleResolvedAsset(
       await ports.respond(buildWhiteLogoWarning());
     }
     await ports.respond(buildDeliveryMessage(asset, { width: rendered.actualWidth, height: rendered.actualHeight }));
-    await auditDelivery(result, ports, "png", rendered.actualWidth, rendered.actualHeight, fileName);
+    await auditDelivery(result, ports, "png", rendered.actualWidth, rendered.actualHeight, pngName);
     return;
   }
 
@@ -154,8 +156,7 @@ export async function handleResolvedAsset(
     paddingRatio: result.paddingRatio ?? 0,
   });
 
-  const outName = `${asset.id}-${width}x${height}.png`;
-  const uploaded = await ports.uploadFile(rendered.buffer, outName, fileName);
+  const uploaded = await ports.uploadFile(rendered.buffer, pngName, pngName);
   if (!uploaded) {
     await ports.respond(
       buildErrorMessage("目前無法在此情境傳送檔案，請直接私訊（DM）我來索取自訂尺寸。")
@@ -170,5 +171,5 @@ export async function handleResolvedAsset(
     await ports.respond(buildWhiteLogoWarning());
   }
   await ports.respond(buildDeliveryMessage(asset, { width, height }));
-  await auditDelivery(result, ports, "png", width, height, fileName);
+  await auditDelivery(result, ports, "png", width, height, pngName);
 }
