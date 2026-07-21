@@ -39,6 +39,23 @@ export function validateDimensions(
   return { valid: true };
 }
 
+/**
+ * Rasterise an SVG to a PNG at its own natural size (from the SVG's width /
+ * height / viewBox), transparent background. Used when a user wants PNG output
+ * but no specific size — we can't rely on stored intrinsic dimensions (the
+ * fast scan doesn't record them), so resvg derives the size from the file here.
+ */
+export function renderSvgNatural(source: Buffer | string): RenderResult {
+  const svgString = typeof source === "string" ? source : source.toString("utf-8");
+  const resvg = new Resvg(svgString);
+  const rendered = resvg.render();
+  return {
+    buffer: Buffer.from(rendered.asPng()),
+    actualWidth: rendered.width,
+    actualHeight: rendered.height,
+  };
+}
+
 export async function renderCustomSize(request: RenderRequest): Promise<RenderResult> {
   const { source, sourceFormat, width, height, background } = request;
 

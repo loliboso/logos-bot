@@ -4,12 +4,15 @@ import { ConversationState } from "./conversation";
 /** ResolvedAsset fields that don't depend on the direct-vs-render decision. */
 type ResolvedBase = Omit<
   ResolvedAsset,
-  "asset" | "needsCustomSize" | "requestedWidth" | "requestedHeight"
+  "asset" | "needsCustomSize" | "renderNaturalPng" | "requestedWidth" | "requestedHeight"
 >;
 
 export interface ResolvedAsset {
   asset: AssetRecord;
   needsCustomSize: boolean;
+  /** Render the SVG source to a PNG at its own natural size (PNG output, no
+   *  custom size requested). Mutually exclusive with needsCustomSize. */
+  renderNaturalPng: boolean;
   requestedWidth: number | null;
   requestedHeight: number | null;
   background: "transparent" | "white" | "black" | null;
@@ -63,12 +66,12 @@ export class AssetResolver {
     // one exists, so we never depend on a stored PNG. Fall back to a stored PNG,
     // then to whatever remains (.ai) as a direct download.
     if (svg) {
-      const w = wantsCustomSize ? p.width! : svg.intrinsic_width;
-      const h = wantsCustomSize ? p.height! : svg.intrinsic_height;
-      // No custom size and the SVG has no intrinsic dimensions → can't size a
-      // canvas, so hand over the SVG file itself rather than fail.
-      if (w && h) return this.render(svg, w, h, base);
-      return this.direct(svg, base);
+      // Custom size → render to that canvas. Otherwise render the SVG to a PNG
+      // at its own natural size (resvg reads the size from the file at render
+      // time — we no longer depend on stored intrinsic dimensions, which the
+      // fast scan doesn't record). Either way the user gets a PNG, never the SVG.
+      if (wantsCustomSize) return this.render(svg, p.width!, p.height!, base);
+      return this.renderNatural(svg, base);
     }
     if (png) {
       // Fallback: no SVG. Render the PNG for a custom size, else deliver as-is.
@@ -86,10 +89,14 @@ export class AssetResolver {
   }
 
   private direct(asset: AssetRecord, base: ResolvedBase): ResolvedAsset {
-    return { asset, needsCustomSize: false, requestedWidth: null, requestedHeight: null, ...base };
+    return { asset, needsCustomSize: false, renderNaturalPng: false, requestedWidth: null, requestedHeight: null, ...base };
   }
 
   private render(asset: AssetRecord, width: number, height: number, base: ResolvedBase): ResolvedAsset {
-    return { asset, needsCustomSize: true, requestedWidth: width, requestedHeight: height, ...base };
+    return { asset, needsCustomSize: true, renderNaturalPng: false, requestedWidth: width, requestedHeight: height, ...base };
+  }
+
+  private renderNatural(asset: AssetRecord, base: ResolvedBase): ResolvedAsset {
+    return { asset, needsCustomSize: false, renderNaturalPng: true, requestedWidth: null, requestedHeight: null, ...base };
   }
 }

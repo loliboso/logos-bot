@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
 import sharp from "sharp";
-import { renderCustomSize, validateDimensions } from "../../src/renderer/renderer";
+import { renderCustomSize, renderSvgNatural, validateDimensions } from "../../src/renderer/renderer";
 
 const SVG_FIXTURE = join(__dirname, "../../fixtures/svgs/logo-blue.svg");
 
@@ -53,6 +53,16 @@ describe("renderCustomSize", () => {
     expect(metadata.width).toBe(500);
     expect(metadata.height).toBe(500);
     expect(metadata.channels).toBe(4);
+  });
+
+  it("renderSvgNatural rasterises the SVG at its own size", async () => {
+    const svgContent = readFileSync(SVG_FIXTURE, "utf-8"); // 300x100 fixture
+    const result = renderSvgNatural(svgContent);
+    expect(result.actualWidth).toBe(300);
+    expect(result.actualHeight).toBe(100);
+    const meta = await sharp(result.buffer).metadata();
+    expect(meta.width).toBe(300);
+    expect(meta.format).toBe("png");
   });
 
   it("renders PNG source to custom canvas size", async () => {

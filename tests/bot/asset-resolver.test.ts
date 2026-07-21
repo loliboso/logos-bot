@@ -167,11 +167,12 @@ describe("AssetResolver", () => {
       resolvedBrandId: "the-news-lens", resolvedAssetId: null, step: "done", startedAt: "",
     } as unknown as ConversationState;
     const result = resolver.resolve(state);
+    // PNG output at original size → render the SVG to PNG at its natural size
+    // (never hand over the SVG file). Size is derived from the file at render
+    // time, so it's a natural-png render, not a custom-size one.
     expect(result?.asset.format).toBe("svg");
-    expect(result?.needsCustomSize).toBe(true);
-    // rendered at the SVG's intrinsic dimensions
-    expect(result?.requestedWidth).toBe(300);
-    expect(result?.requestedHeight).toBe(100);
+    expect(result?.renderNaturalPng).toBe(true);
+    expect(result?.needsCustomSize).toBe(false);
   });
 
   it("falls back to the stored PNG when no SVG exists for the variant", () => {
