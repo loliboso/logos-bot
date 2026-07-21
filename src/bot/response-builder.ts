@@ -28,6 +28,9 @@ export function buildQuestionMessage(question: Question): SlackMessage {
   return { text: question.text };
 }
 
+const DELIVERY_REMINDER =
+  "你要的檔案在此。同時溫馨提醒，品牌 logo 是集團的形象，請勿任意變形、換色，或放在辨識度不佳的背景中，感謝配合。";
+
 export function buildDeliveryMessage(
   asset: AssetRecord,
   customSize?: { width: number; height: number }
@@ -35,11 +38,12 @@ export function buildDeliveryMessage(
   const fileName = asset.source_path.split("/").pop() || asset.id;
 
   if (customSize) {
-    const text = `已產出 ${customSize.width} x ${customSize.height} PNG，Logo 已等比例置中，來源：${fileName}`;
+    const detail = `已產出 ${customSize.width} x ${customSize.height} PNG，Logo 已等比例置中，來源：${fileName}`;
     return {
-      text,
+      text: `${DELIVERY_REMINDER}\n${detail}`,
       blocks: [
-        { type: "section", text: { type: "mrkdwn", text: `✓ ${text}` } },
+        { type: "section", text: { type: "mrkdwn", text: DELIVERY_REMINDER } },
+        { type: "section", text: { type: "mrkdwn", text: `✓ ${detail}` } },
         {
           type: "context",
           elements: [
@@ -50,11 +54,12 @@ export function buildDeliveryMessage(
     };
   }
 
-  const text = `${asset.format.toUpperCase()} — ${fileName}`;
+  const detail = `${asset.format.toUpperCase()} — ${fileName}`;
   return {
-    text,
+    text: `${DELIVERY_REMINDER}\n${detail}`,
     blocks: [
-      { type: "section", text: { type: "mrkdwn", text: `✓ ${text}` } },
+      { type: "section", text: { type: "mrkdwn", text: DELIVERY_REMINDER } },
+      { type: "section", text: { type: "mrkdwn", text: `✓ ${detail}` } },
       {
         type: "context",
         elements: [

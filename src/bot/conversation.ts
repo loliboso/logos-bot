@@ -127,11 +127,11 @@ export class ConversationManager {
     if (!state.parsed.format) {
       const stored = distinct(narrow(assets, state.parsed).map((a) => a.format));
       const options: { label: string; value: string }[] = [];
-      if (stored.includes("svg")) options.push({ label: "SVG（向量原檔）", value: "svg" });
+      if (stored.includes("svg")) options.push({ label: "向量 .svg", value: "svg" });
       if (stored.includes("svg") || stored.includes("png")) {
-        options.push({ label: "PNG（圖片）", value: "png" });
+        options.push({ label: "圖片 .png", value: "png" });
       }
-      if (stored.includes("ai")) options.push({ label: "AI（原始檔）", value: "ai" });
+      if (stored.includes("ai")) options.push({ label: "原始檔 .ai", value: "ai" });
       if (options.length > 1) {
         return { text: "你想要哪種格式？", field: "format", options };
       }
