@@ -129,6 +129,38 @@ describe("ConversationManager", () => {
     expect(question?.options?.map((o) => o.value)).toEqual(["svg", "png"]);
   });
 
+  it("offers .ai even when the request is logo-typed (guideline .ai is brand-level)", () => {
+    // iCook's only .ai is an identity-guidelines file catalogued as
+    // asset_type='guideline' with null colour/language/layout. A "logo" request
+    // sets asset_type='logo', which would narrow that .ai away — but .ai must
+    // still be offered because it exists for the brand.
+    const guidelineAi: AssetRecord = {
+      id: "g1", brand_id: "the-news-lens", asset_type: "guideline", variant: "guideline",
+      language: null, format: "ai", color: null, background: "transparent", layout: null,
+      usage: ["general"], source_drive_file_id: "fai", source_path: "Guidelines.ai",
+      intrinsic_width: null, intrinsic_height: null, can_resize: false, status: "active",
+      confidence: 0.85, inferred_from: [], review_status: "accepted", review_reason: null, scanner_run_id: null,
+    };
+    const assets = [...sampleAssets, guidelineAi];
+    const parsed: ParsedRequest = {
+      brand: "the-news-lens", brandCandidates: ["the-news-lens"],
+      format: null, color: null, language: null, asset_type: "logo", layout: null,
+      width: null, height: null, background: null, paddingRatio: null, raw_text: "iCook logo",
+    };
+    const state = manager.startConversation("user1", "ch1", parsed);
+    state.resolvedBrandId = "the-news-lens";
+
+    const question = manager.getNextQuestion(state, [twoBrands[0]], assets);
+    expect(question?.field).toBe("format");
+    expect(question?.options?.map((o) => o.value)).toContain("ai");
+
+    // Choosing .ai clears the logo-oriented filters and the flow proceeds to the
+    // purpose gate (not stuck with an empty narrowed set).
+    const afterAi = manager.applyAnswer(state, "format", "ai");
+    expect(afterAi.parsed.asset_type).toBeNull();
+    expect(manager.getNextQuestion(afterAi, [twoBrands[0]], assets)?.field).toBe("purpose");
+  });
+
   it("asks for dimensions after the user chooses a custom size", () => {
     const parsed: ParsedRequest = {
       brand: "the-news-lens",

@@ -131,7 +131,11 @@ export class ConversationManager {
       if (stored.includes("svg") || stored.includes("png")) {
         options.push({ label: "圖片 .png", value: "png" });
       }
-      if (stored.includes("ai")) options.push({ label: "原始檔 .ai", value: "ai" });
+      // .ai is a brand-level source file (e.g. identity guidelines), usually
+      // catalogued as asset_type='guideline' with null colour/language/layout —
+      // so any logo-oriented constraint the user gave would narrow it away. Offer
+      // it whenever the brand has ANY .ai at all, not just within the narrowed set.
+      if (assets.some((a) => a.format === "ai")) options.push({ label: "原始檔 .ai", value: "ai" });
       if (options.length > 1) {
         return { text: "你想要哪種格式？", field: "format", options };
       }
@@ -285,6 +289,20 @@ export class ConversationManager {
         break;
       case "format":
         next.parsed.format = value === "any" ? null : value;
+        // .ai is delivered as the brand's source file, not a logo variant. Any
+        // asset_type/colour/language/layout/size already set (by the user or the
+        // parser — e.g. "logo") is about logos and would filter the .ai record
+        // (typically a null-attribute 'guideline') down to nothing. Clear them so
+        // the .ai path resolves at the brand level; the type step then re-derives
+        // asset_type from the .ai files that actually exist.
+        if (next.parsed.format === "ai") {
+          next.parsed.asset_type = null;
+          next.parsed.color = null;
+          next.parsed.language = null;
+          next.parsed.layout = null;
+          next.parsed.width = null;
+          next.parsed.height = null;
+        }
         break;
       case "color":
         next.parsed.color = value;
